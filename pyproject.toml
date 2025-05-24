@@ -13,6 +13,9 @@ dependencies = [
     "pydantic>=2.5.0",
     "fastapi-mcp",
     "numpy>=1.24.0",
+    "sentence-transformers>=2.2.0",
+    "aiohttp>=3.9.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]
