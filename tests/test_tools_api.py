@@ -19,7 +19,7 @@ def client():
 @pytest.fixture
 def mock_discovery_service():
     """Mock discovery service."""
-    with patch("tool_gating_mcp.api.v1.tools.DiscoveryService") as mock:
+    with patch("tool_gating_mcp.api.tools.DiscoveryService") as mock:
         service = AsyncMock()
         mock.return_value = service
         yield service
@@ -28,16 +28,16 @@ def mock_discovery_service():
 @pytest.fixture
 def mock_gating_service():
     """Mock gating service."""
-    with patch("tool_gating_mcp.api.v1.tools.GatingService") as mock:
+    with patch("tool_gating_mcp.api.tools.GatingService") as mock:
         service = AsyncMock()
         mock.return_value = service
         yield service
 
 
 def test_discover_tools_endpoint(client):
-    """Test POST /api/v1/tools/discover endpoint."""
-    from tool_gating_mcp.api.v1.tools import get_discovery_service
-    
+    """Test POST /api/tools/discover endpoint."""
+    from tool_gating_mcp.api.tools import get_discovery_service
+
     # Mock discovery service
     mock_discovery_service = AsyncMock()
     mock_tool = Tool(
@@ -50,15 +50,15 @@ def test_discover_tools_endpoint(client):
     mock_discovery_service.search_tools.return_value = [
         ToolMatch(tool=mock_tool, score=0.95, matched_tags=["math"])
     ]
-    
+
     # Override dependency with async function
     async def override_discovery_service():
         return mock_discovery_service
-    
+
     app.dependency_overrides[get_discovery_service] = override_discovery_service
 
     response = client.post(
-        "/api/v1/tools/discover",
+        "/api/tools/discover",
         json={"query": "I need a calculator", "tags": ["math"], "limit": 5},
     )
 
@@ -69,7 +69,7 @@ def test_discover_tools_endpoint(client):
     assert data["tools"][0]["score"] == 0.95
     assert "query_id" in data
     assert "timestamp" in data
-    
+
     # Clean up
     del app.dependency_overrides[get_discovery_service]
 
@@ -77,16 +77,16 @@ def test_discover_tools_endpoint(client):
 def test_discover_tools_validation(client):
     """Test discovery endpoint validation."""
     # Empty query should fail
-    response = client.post("/api/v1/tools/discover", json={"query": ""})
+    response = client.post("/api/tools/discover", json={"query": ""})
     assert response.status_code == 422
 
     # Invalid limit should fail
-    response = client.post("/api/v1/tools/discover", json={"query": "test", "limit": 0})
+    response = client.post("/api/tools/discover", json={"query": "test", "limit": 0})
     assert response.status_code == 422
 
 
 def test_provision_tools_endpoint(client, mock_gating_service):
-    """Test POST /api/v1/tools/provision endpoint."""
+    """Test POST /api/tools/provision endpoint."""
     # Mock selected tools
     mock_tools = [
         Tool(
@@ -113,7 +113,7 @@ def test_provision_tools_endpoint(client, mock_gating_service):
     mock_gating_service.format_for_mcp.return_value = mock_mcp_tools
 
     response = client.post(
-        "/api/v1/tools/provision", json={"tool_ids": ["calc-1"], "max_tools": 5}
+        "/api/tools/provision", json={"tool_ids": ["calc-1"], "max_tools": 5}
     )
 
     assert response.status_code == 200
@@ -129,7 +129,7 @@ def test_provision_tools_empty_request(client, mock_gating_service):
     mock_gating_service.select_tools.return_value = []
     mock_gating_service.format_for_mcp.return_value = []
 
-    response = client.post("/api/v1/tools/provision", json={})
+    response = client.post("/api/tools/provision", json={})
 
     assert response.status_code == 200
     data = response.json()

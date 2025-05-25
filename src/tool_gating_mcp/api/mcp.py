@@ -4,18 +4,18 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...config import settings
-from ...models.mcp_config import (
+from ..config import settings
+from ..models.mcp_config import (
     AnthropicMCPConfig,
     MCPServerConfig,
     MCPServerRegistration,
     MCPToolDiscoveryRequest,
 )
-from ...services.mcp_connector import LocalMCPConnector, MCPConnector
-from ...services.mcp_registry import MCPDiscoveryService, MCPServerRegistry
+from ..services.mcp_connector import LocalMCPConnector, MCPConnector
+from ..services.mcp_registry import MCPDiscoveryService, MCPServerRegistry
 from .tools import get_tool_repository
 
-router = APIRouter(prefix="/api/v1/mcp", tags=["mcp"])
+router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
 # Singleton registry instance
 _mcp_registry: MCPServerRegistry | None = None
@@ -111,7 +111,7 @@ async def discover_mcp_tools(
             "next_steps": [
                 "1. Connect to the MCP server using the config",
                 "2. Get the tool list",
-                "3. Register each tool with POST /api/v1/tools/register",
+                "3. Register each tool with POST /api/tools/register",
                 "4. Include all tool details and appropriate metadata",
             ],
         }
@@ -126,7 +126,12 @@ async def discover_mcp_tools(
 
             # Register the server config
             await registry.register_server(
-                MCPServerRegistration(name=request.server_name, config=request.config)
+                MCPServerRegistration(
+                    name=request.server_name,
+                    config=request.config,
+                    description=f"MCP server: {request.server_name}",
+                    estimated_tools=10
+                )
             )
 
             # Discover and register tools
@@ -155,7 +160,7 @@ async def discover_mcp_tools(
         "options": [
             "1. Use Claude Desktop or Cursor to discover tools",
             "2. Configure ANTHROPIC_API_KEY in .env file",
-            "3. Manually register tools with POST /api/v1/tools/register",
+            "3. Manually register tools with POST /api/tools/register",
         ],
     }
 
@@ -195,7 +200,10 @@ async def ai_register_mcp_server(
 
     # Register the server configuration
     registration = MCPServerRegistration(
-        name=server_name, config=config, description=f"MCP server: {server_name}"
+        name=server_name,
+        config=config,
+        description=f"MCP server: {server_name}",
+        estimated_tools=len(tools)
     )
 
     server_result = await registry.register_server(registration)
@@ -221,7 +229,7 @@ async def ai_register_mcp_server(
             }
 
             # Add to repository
-            from ...models.tool import Tool
+            from ..models.tool import Tool
 
             tool_model = Tool(**tool)
             await discovery.tool_repo.add_tool(tool_model)

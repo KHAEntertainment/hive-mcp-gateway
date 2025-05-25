@@ -24,10 +24,12 @@ Tool Gating is now itself an MCP server! This means:
 ## How to Use This System
 
 ### Option 1: As an MCP Server (Recommended for Claude Desktop)
-See @docs/MCP_NATIVE_USAGE.md for setup instructions.
+See:
+@docs/MCP_NATIVE_USAGE.md
 
 ### Option 2: As HTTP API
-See @docs/USAGE.md for API usage.
+See:
+@docs/USAGE.md
 
 ## Development Commands
 

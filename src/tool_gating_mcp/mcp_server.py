@@ -6,8 +6,8 @@ allowing Claude and other LLMs to use it natively via MCP protocol.
 """
 
 from fastapi_mcp import FastApiMCP
-from .main import app
 
+from .main import app
 
 # Create the MCP server from our FastAPI app
 mcp = FastApiMCP(
@@ -28,8 +28,7 @@ def run_mcp_stdio():
     # For stdio transport, we need to use mcp-proxy as a bridge
     # This is documented in the MCP_NATIVE_USAGE.md
     import subprocess
-    import sys
-    
+
     # Run mcp-proxy to bridge HTTP SSE to stdio
     subprocess.run([
         "mcp-proxy",

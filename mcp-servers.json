@@ -44,5 +44,13 @@
     "command": "mcp-server-puppeteer",
     "args": [],
     "env": {}
+  },
+  "git-test": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-git"
+    ],
+    "env": {}
   }
 }

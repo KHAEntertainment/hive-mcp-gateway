@@ -19,7 +19,7 @@ class TestIntegration:
         """Test complete workflow: discover -> provision -> execute."""
         # 1. Discover tools for math calculations
         discover_response = client.post(
-            "/api/v1/tools/discover",
+            "/api/tools/discover",
             json={
                 "query": "I need to perform mathematical calculations",
                 "tags": ["math"],
@@ -41,7 +41,7 @@ class TestIntegration:
         # 2. Provision the discovered tools
         tool_ids = [t["tool_id"] for t in discover_data["tools"][:3]]
         provision_response = client.post(
-            "/api/v1/tools/provision",
+            "/api/tools/provision",
             json={
                 "tool_ids": tool_ids,
                 "max_tools": 3
@@ -85,7 +85,7 @@ class TestIntegration:
 
         for test_case in test_cases:
             response = client.post(
-                "/api/v1/tools/discover",
+                "/api/tools/discover",
                 json={
                     "query": test_case["query"],
                     "limit": 5
@@ -109,7 +109,7 @@ class TestIntegration:
         """Test that gating respects token budget."""
         # Get all tools
         discover_response = client.post(
-            "/api/v1/tools/discover",
+            "/api/tools/discover",
             json={
                 "query": "all tools",
                 "limit": 50
@@ -121,7 +121,7 @@ class TestIntegration:
         # Try to provision all tools
         all_tool_ids = [t["tool_id"] for t in all_tools]
         provision_response = client.post(
-            "/api/v1/tools/provision",
+            "/api/tools/provision",
             json={
                 "tool_ids": all_tool_ids,
                 "max_tools": 50,  # High limit
@@ -139,7 +139,7 @@ class TestIntegration:
     def test_tag_filtering(self, client):
         """Test tag-based filtering works correctly."""
         response = client.post(
-            "/api/v1/tools/discover",
+            "/api/tools/discover",
             json={
                 "query": "any tool",
                 "tags": ["math", "calculation"],

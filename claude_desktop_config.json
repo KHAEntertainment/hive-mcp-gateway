@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tool-gating": {
+      "command": "/Users/andremachon/.local/bin/mcp-proxy",
+      "args": ["http://localhost:8000/mcp"]
+    }
+  }
+}

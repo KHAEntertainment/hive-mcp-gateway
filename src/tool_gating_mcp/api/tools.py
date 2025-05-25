@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from ...api.models import (
+from ..api.models import (
     MCPToolDefinition,
     ToolDiscoveryRequest,
     ToolDiscoveryResponse,
@@ -15,11 +15,11 @@ from ...api.models import (
     ToolProvisionRequest,
     ToolProvisionResponse,
 )
-from ...models.tool import Tool
-from ...services.discovery import DiscoveryService
-from ...services.gating import GatingService
+from ..models.tool import Tool
+from ..services.discovery import DiscoveryService
+from ..services.gating import GatingService
 
-router = APIRouter(prefix="/api/v1/tools", tags=["tools"])
+router = APIRouter(prefix="/api/tools", tags=["tools"])
 
 
 # Singleton repository instance
@@ -30,7 +30,7 @@ async def get_tool_repository() -> Any:
     """Get or create tool repository instance."""
     global _tool_repository
     if _tool_repository is None:
-        from ...services.repository import InMemoryToolRepository
+        from ..services.repository import InMemoryToolRepository
 
         _tool_repository = InMemoryToolRepository()
         await _tool_repository.populate_demo_tools()

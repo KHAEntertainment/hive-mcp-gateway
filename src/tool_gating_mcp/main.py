@@ -4,7 +4,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from .api.v1 import mcp, tools
+from .api import mcp, tools
 
 
 class HealthResponse(BaseModel):
@@ -25,7 +25,6 @@ app.include_router(tools.router)
 app.include_router(mcp.router)
 
 # Mount MCP server (makes endpoints available at /mcp)
-from .mcp_server import mcp as mcp_server
 # Note: mcp.mount() is already called in mcp_server.py
 
 
