@@ -1,6 +1,6 @@
 [project]
 name = "tool-gating-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "FastAPI application for tool gating MCP"
 readme = "README.md"
 authors = [

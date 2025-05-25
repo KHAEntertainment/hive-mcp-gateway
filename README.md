@@ -34,6 +34,8 @@ Tool Gating MCP acts as an intelligent middleware that:
 - **Token Budget Enforcement**: Ensures selected tools fit within LLM context limits
 - **Smart Scoring**: Combines semantic similarity with tag matching for accurate tool selection
 - **MCP Protocol Compatible**: Outputs tools in standard MCP format for direct LLM consumption
+- **Native MCP Server**: Built-in MCP endpoint at `/mcp` using FastAPI-MCP
+- **Dual Transport Support**: HTTP/SSE for web clients, stdio for Claude Desktop (via mcp-proxy)
 - **RESTful API**: Easy integration with any LLM orchestration system
 
 ## 📋 Prerequisites
@@ -68,6 +70,8 @@ uv pip install -e .
 
 ## 🏃 Running the Server
 
+### As HTTP API Server
+
 ```bash
 # Start the server
 tool-gating-mcp
@@ -81,6 +85,26 @@ The server will run on `http://localhost:8000`
 API documentation available at:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+- MCP Endpoint: `http://localhost:8000/mcp` (SSE transport)
+
+### As MCP Server for Claude Desktop
+
+See [MCP Native Usage Guide](docs/MCP_NATIVE_USAGE.md) for detailed instructions.
+
+Quick setup:
+1. Run the server: `tool-gating-mcp`
+2. Install mcp-proxy: `uv tool install mcp-proxy`
+3. Add to Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "tool-gating": {
+      "command": "mcp-proxy",
+      "args": ["http://localhost:8000/mcp"]
+    }
+  }
+}
+```
 
 ## 🔍 API Endpoints
 

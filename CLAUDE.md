@@ -15,9 +15,19 @@ Tool Gating MCP is a production-ready FastAPI service that intelligently manages
 ### Why This Matters for Claude
 Without tool gating, loading all available MCP tools (100+) quickly exhausts the context window. This system lets you access any tool when needed while keeping only 3-5 relevant tools active at once.
 
+### Native MCP Integration ✨
+Tool Gating is now itself an MCP server! This means:
+- Claude Desktop can connect to it directly via MCP protocol
+- Use Tool Gating's tools (`discover_tools`, `provision_tools`) natively
+- Meta-level efficiency: An MCP server that manages other MCP servers
+
 ## How to Use This System
 
-@docs/USAGE.md
+### Option 1: As an MCP Server (Recommended for Claude Desktop)
+See @docs/MCP_NATIVE_USAGE.md for setup instructions.
+
+### Option 2: As HTTP API
+See @docs/USAGE.md for API usage.
 
 ## Development Commands
 

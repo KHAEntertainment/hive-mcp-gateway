@@ -17,12 +17,16 @@ class HealthResponse(BaseModel):
 app = FastAPI(
     title="Tool Gating MCP",
     description="FastAPI application for tool gating MCP",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 # Include API routers
 app.include_router(tools.router)
 app.include_router(mcp.router)
+
+# Mount MCP server (makes endpoints available at /mcp)
+from .mcp_server import mcp as mcp_server
+# Note: mcp.mount() is already called in mcp_server.py
 
 
 @app.get("/")
