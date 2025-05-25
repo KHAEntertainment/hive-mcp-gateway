@@ -34,9 +34,12 @@ def mock_gating_service():
         yield service
 
 
-def test_discover_tools_endpoint(client, mock_discovery_service):
+def test_discover_tools_endpoint(client):
     """Test POST /api/v1/tools/discover endpoint."""
-    # Mock discovery results
+    from tool_gating_mcp.api.v1.tools import get_discovery_service
+    
+    # Mock discovery service
+    mock_discovery_service = AsyncMock()
     mock_tool = Tool(
         id="calc-1",
         name="Calculator",
@@ -44,9 +47,15 @@ def test_discover_tools_endpoint(client, mock_discovery_service):
         tags=["math"],
         estimated_tokens=100,
     )
-    mock_discovery_service.find_relevant_tools.return_value = [
+    mock_discovery_service.search_tools.return_value = [
         ToolMatch(tool=mock_tool, score=0.95, matched_tags=["math"])
     ]
+    
+    # Override dependency with async function
+    async def override_discovery_service():
+        return mock_discovery_service
+    
+    app.dependency_overrides[get_discovery_service] = override_discovery_service
 
     response = client.post(
         "/api/v1/tools/discover",
@@ -60,6 +69,9 @@ def test_discover_tools_endpoint(client, mock_discovery_service):
     assert data["tools"][0]["score"] == 0.95
     assert "query_id" in data
     assert "timestamp" in data
+    
+    # Clean up
+    del app.dependency_overrides[get_discovery_service]
 
 
 def test_discover_tools_validation(client):

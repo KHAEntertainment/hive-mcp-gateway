@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from ...api.models import (
     MCPToolDefinition,
@@ -97,7 +97,7 @@ async def provision_tools(
     # Apply token budget if provided
     if request.context_tokens:
         gating_service.max_tokens = request.context_tokens
-    
+
     # Apply gating logic
     selected_tools = await gating_service.select_tools(
         tool_ids=request.tool_ids, max_tools=request.max_tools, user_context=user
@@ -113,7 +113,7 @@ async def provision_tools(
             description=tool.description,
             parameters=tool.inputSchema,
             token_count=100,  # Simplified for now
-            server=getattr(selected_tools[i], 'server', None),
+            server=getattr(selected_tools[i], "server", None),
         )
         for i, tool in enumerate(mcp_tools)
     ]
@@ -133,7 +133,7 @@ async def register_tool(
     tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
 ) -> dict[str, str]:
     """Register a new tool in the system."""
-    tool_repo.add_tool(tool)
+    await tool_repo.add_tool(tool)
     return {"status": "success", "tool_id": tool.id}
 
 
@@ -142,7 +142,7 @@ async def clear_tools(
     tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
 ) -> dict[str, str]:
     """Clear all tools from the repository."""
-    tool_repo.tools.clear()
+    tool_repo._tools.clear()
     return {"status": "success", "message": "All tools cleared"}
 
 

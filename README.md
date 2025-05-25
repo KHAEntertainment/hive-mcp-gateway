@@ -268,6 +268,8 @@ The system uses sensible defaults but can be configured:
 ## 📖 Documentation
 
 - [Tool Discovery System](docs/DISCOVERY.md) - How semantic search and tags work together
+- [Adding New MCP Servers](docs/ADDING_SERVERS.md) - Step-by-step guide to integrate new servers
+- [AI Integration Guide](docs/AI_INTEGRATION.md) - How AI assistants can automatically add MCP servers
 - [Architecture Overview](ARCHITECTURE.md) - System design and component interactions
 
 ## 📁 Project Structure
@@ -339,6 +341,30 @@ POST /api/v1/tools/register
    {"tool_ids": ["exa_research_paper_search"], "max_tokens": 500}
    ```
 5. **LLM executes directly with MCP server**: Using the provisioned tool definition
+
+### AI-Assisted Server Registration
+
+AI assistants can automatically add new MCP servers:
+
+```python
+# User: "Add this Slack MCP server to tool gating"
+# AI: Connects to server, discovers tools, and registers everything
+
+POST /api/v1/mcp/ai/register-server
+{
+  "server_name": "slack",
+  "config": {
+    "command": "npx",
+    "args": ["@slack/mcp-server"],
+    "env": {"SLACK_TOKEN": "xoxb-..."}
+  },
+  "tools": [
+    // AI provides all discovered tools with metadata
+  ]
+}
+
+# Result: Slack server + all tools registered and ready for use
+```
 
 ## 🧑‍💻 Development
 

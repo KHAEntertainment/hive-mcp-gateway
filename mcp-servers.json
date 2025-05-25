@@ -1,11 +1,18 @@
 {
   "context7": {
     "command": "npx",
-    "args": ["-y", "@upstash/context7-mcp@latest"]
+    "args": [
+      "-y",
+      "@upstash/context7-mcp@latest"
+    ],
+    "env": {}
   },
   "desktop-commander": {
     "command": "npx",
-    "args": ["@wonderwhy-er/desktop-commander@latest"]
+    "args": [
+      "@wonderwhy-er/desktop-commander@latest"
+    ],
+    "env": {}
   },
   "exa": {
     "command": "exa-mcp-server",
@@ -18,6 +25,24 @@
   },
   "basic-memory": {
     "command": "/Users/andremachon/.local/bin/uvx",
-    "args": ["basic-memory", "mcp"]
+    "args": [
+      "basic-memory",
+      "mcp"
+    ],
+    "env": {}
+  },
+  "filesystem-tools": {
+    "command": "mcp-filesystem",
+    "args": [
+      "--root",
+      "/tmp",
+      "--read-only"
+    ],
+    "env": {}
+  },
+  "puppeteer": {
+    "command": "mcp-server-puppeteer",
+    "args": [],
+    "env": {}
   }
 }

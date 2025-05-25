@@ -2,6 +2,7 @@
 """Manual test script to verify the server works."""
 
 import asyncio
+
 import httpx
 
 
@@ -13,7 +14,7 @@ async def test_server():
         health = await client.get("/health")
         print(f"Health status: {health.status_code}")
         print(f"Health data: {health.json()}\n")
-        
+
         # Test tool discovery
         print("Testing tool discovery...")
         discover_response = await client.post(
@@ -28,7 +29,7 @@ async def test_server():
         print(f"Found {len(discover_data['tools'])} tools")
         for tool in discover_data['tools'][:3]:
             print(f"  - {tool['name']} (score: {tool['score']:.3f})")
-        
+
         # Test provisioning
         print("\nTesting tool provisioning...")
         tool_ids = [t["tool_id"] for t in discover_data["tools"][:3]]
@@ -43,7 +44,7 @@ async def test_server():
         provision_data = provision_response.json()
         print(f"Provisioned {len(provision_data['tools'])} tools")
         print(f"Total tokens: {provision_data['metadata']['total_tokens']}")
-        
+
         # Note: Tool execution removed
         # The gating system only provides tool definitions
         # LLMs should execute tools directly with MCP servers
@@ -53,7 +54,7 @@ async def test_server():
 if __name__ == "__main__":
     print("Starting manual test of tool-gating-mcp server...\n")
     print("Make sure the server is running with: tool-gating-mcp\n")
-    
+
     try:
         asyncio.run(test_server())
     except httpx.ConnectError:

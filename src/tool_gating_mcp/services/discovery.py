@@ -60,7 +60,9 @@ class DiscoveryService:
             tool_scores.append(
                 ToolMatch(
                     tool=tool,
-                    score=float(max(0.0, min(1.0, similarity + tag_boost))),  # Ensure between 0 and 1
+                    score=float(
+                        max(0.0, min(1.0, similarity + tag_boost))
+                    ),  # Ensure between 0 and 1
                     matched_tags=matched_tags,
                 )
             )
@@ -100,7 +102,7 @@ class DiscoveryService:
             return 0.0
 
         return float(dot_product / (norm1 * norm2))
-    
+
     async def search_tools(
         self,
         query: str,
@@ -109,8 +111,5 @@ class DiscoveryService:
     ) -> list[ToolMatch]:
         """Search for tools using semantic search (simplified interface)."""
         return await self.find_relevant_tools(
-            query=query,
-            context=None,
-            tags=tags,
-            limit=top_k
+            query=query, context=None, tags=tags, limit=top_k
         )

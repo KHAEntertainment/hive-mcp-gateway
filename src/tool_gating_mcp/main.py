@@ -4,7 +4,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from .api.v1 import tools
+from .api.v1 import mcp, tools
 
 
 class HealthResponse(BaseModel):
@@ -22,6 +22,7 @@ app = FastAPI(
 
 # Include API routers
 app.include_router(tools.router)
+app.include_router(mcp.router)
 
 
 @app.get("/")
