@@ -94,6 +94,10 @@ async def provision_tools(
     user: dict[str, str] = Depends(get_current_user),  # noqa: B008
 ) -> ToolProvisionResponse:
     """Provision tools for LLM consumption based on selection criteria."""
+    # Apply token budget if provided
+    if request.context_tokens:
+        gating_service.max_tokens = request.context_tokens
+    
     # Apply gating logic
     selected_tools = await gating_service.select_tools(
         tool_ids=request.tool_ids, max_tools=request.max_tools, user_context=user

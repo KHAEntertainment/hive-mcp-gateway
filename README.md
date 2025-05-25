@@ -265,6 +265,11 @@ The system uses sensible defaults but can be configured:
 - **Max Tools**: Default 10 tools per request
 - **Embedding Model**: `all-MiniLM-L6-v2` (384-dimensional embeddings)
 
+## 📖 Documentation
+
+- [Tool Discovery System](docs/DISCOVERY.md) - How semantic search and tags work together
+- [Architecture Overview](ARCHITECTURE.md) - System design and component interactions
+
 ## 📁 Project Structure
 
 ```

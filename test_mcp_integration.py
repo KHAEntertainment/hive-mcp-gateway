@@ -269,19 +269,18 @@ async def run_integration_test():
             f"{BASE_URL}/api/v1/tools/discover",
             json={
                 "query": "search and store information",
-                "top_k": 6
+                "limit": 6
             }
         )
         
-        results = search_response.json()["results"]
+        results = search_response.json()["tools"]
         servers_found = set()
         
         console.print("\nQuery: 'search and store information'")
         for result in results:
-            tool = result["tool"]
-            server = tool.get("server", "unknown")
+            server = result.get("server", "unknown")
             servers_found.add(server)
-            console.print(f"  - {tool['name']} ({server}): {result['score']:.3f}")
+            console.print(f"  - {result['name']} ({server}): {result['score']:.3f}")
         
         console.print(f"\nServers matched: {', '.join(servers_found)}")
         
@@ -295,7 +294,7 @@ async def run_integration_test():
             f"{BASE_URL}/api/v1/tools/provision",
             json={
                 "tool_ids": all_tool_ids[:8],  # Request 8 tools
-                "max_tokens": 500  # Low budget to test filtering
+                "context_tokens": 500  # Low budget to test filtering
             }
         )
         
@@ -306,7 +305,7 @@ async def run_integration_test():
         console.print(f"Token budget: 500")
         console.print(f"Provisioned: {len(tools)} tools")
         
-        total_tokens = sum(tool["estimated_tokens"] for tool in tools)
+        total_tokens = sum(tool["token_count"] for tool in tools)
         console.print(f"Total tokens used: {total_tokens}")
         
         table = Table(title="Provisioned Tools (within budget)")
@@ -349,17 +348,16 @@ async def run_integration_test():
             f"{BASE_URL}/api/v1/tools/discover",
             json={
                 "query": "documentation",
-                "top_k": 5,
+                "limit": 5,
                 "tags": ["documentation"]
             }
         )
         
-        results = search_response.json()["results"]
+        results = search_response.json()["tools"]
         
         console.print("\nTools with 'documentation' tag:")
         for result in results:
-            tool = result["tool"]
-            console.print(f"  - {tool['name']}: {', '.join(tool['tags'])}")
+            console.print(f"  - {result['name']}: {', '.join(result.get('matched_tags', []))}")
         
         console.print("\n[bold green]✅ Integration test completed successfully![/bold green]")
 
