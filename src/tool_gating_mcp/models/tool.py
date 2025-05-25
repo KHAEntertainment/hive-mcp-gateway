@@ -48,4 +48,6 @@ class MCPTool(BaseModel):
 
     name: str = Field(..., description="Tool name in MCP format")
     description: str = Field(..., description="Tool description for LLM consumption")
-    inputSchema: dict[str, Any] = Field(..., description="JSON Schema for tool inputs")  # noqa: N815
+    inputSchema: dict[str, Any] = Field(
+        ..., description="JSON Schema for tool inputs"
+    )  # noqa: N815

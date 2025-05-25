@@ -50,9 +50,7 @@ class ToolDiscoveryResponse(BaseModel):
 class ToolProvisionRequest(BaseModel):
     """Request model for tool provisioning endpoint."""
 
-    tool_ids: list[str] | None = Field(
-        None, description="Specific tools to provision"
-    )
+    tool_ids: list[str] | None = Field(None, description="Specific tools to provision")
     max_tools: int | None = Field(None, description="Maximum number of tools")
     context_tokens: int | None = Field(None, description="Available token budget")
 

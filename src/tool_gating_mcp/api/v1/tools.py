@@ -3,6 +3,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -23,23 +24,32 @@ from ...services.proxy import ProxyService
 router = APIRouter(prefix="/api/v1/tools", tags=["tools"])
 
 
+# Singleton repository instance
+_tool_repository: Any = None
+
+
+async def get_tool_repository() -> Any:
+    """Get or create tool repository instance."""
+    global _tool_repository
+    if _tool_repository is None:
+        from ...services.repository import InMemoryToolRepository
+
+        _tool_repository = InMemoryToolRepository()
+        await _tool_repository.populate_demo_tools()
+    return _tool_repository
+
+
 # Dependency injection for services
-def get_discovery_service() -> DiscoveryService:
+async def get_discovery_service() -> DiscoveryService:
     """Get discovery service instance."""
-    # In production, this would use proper DI with repository
-    from unittest.mock import AsyncMock
-
-    mock_repo = AsyncMock()
-    return DiscoveryService(mock_repo)
+    repo = await get_tool_repository()
+    return DiscoveryService(tool_repo=repo)
 
 
-def get_gating_service() -> GatingService:
+async def get_gating_service() -> GatingService:
     """Get gating service instance."""
-    # In production, this would use proper DI with repository
-    from unittest.mock import AsyncMock
-
-    mock_repo = AsyncMock()
-    return GatingService(mock_repo)
+    repo = await get_tool_repository()
+    return GatingService(tool_repo=repo)
 
 
 def get_proxy_service() -> ProxyService:

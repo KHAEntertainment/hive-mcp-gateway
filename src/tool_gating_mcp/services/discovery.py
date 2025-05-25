@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from sentence_transformers import SentenceTransformer
 
 from ..models.tool import ToolMatch
 
@@ -12,12 +13,11 @@ from ..models.tool import ToolMatch
 class DiscoveryService:
     """Service for discovering relevant tools based on queries and context."""
 
-    def __init__(self, tool_repo: Any) -> None:
+    def __init__(self, tool_repo: Any, model_name: str = "all-MiniLM-L6-v2") -> None:
         """Initialize discovery service with tool repository."""
         self.tool_repo = tool_repo
-        # In production, this would be a real sentence transformer
-        # For now, we'll use a mock that can be replaced
-        self.encoder: Any = None
+        # Initialize sentence transformer for semantic search
+        self.encoder = SentenceTransformer(model_name)
         self._tool_embeddings_cache: dict[str, NDArray[np.float64]] = {}
 
     async def find_relevant_tools(
@@ -60,7 +60,7 @@ class DiscoveryService:
             tool_scores.append(
                 ToolMatch(
                     tool=tool,
-                    score=float(min(1.0, similarity + tag_boost)),  # Cap at 1.0
+                    score=float(max(0.0, min(1.0, similarity + tag_boost))),  # Ensure between 0 and 1
                     matched_tags=matched_tags,
                 )
             )
@@ -69,18 +69,17 @@ class DiscoveryService:
         tool_scores.sort(key=lambda x: x.score, reverse=True)
         return tool_scores[:limit]
 
-    def _get_embedding(self, text: str, cache_key: str | None = None) -> NDArray[np.float64]:
+    def _get_embedding(
+        self, text: str, cache_key: str | None = None
+    ) -> NDArray[np.float64]:
         """Get embedding for text, using cache if available."""
         if cache_key and cache_key in self._tool_embeddings_cache:
             return self._tool_embeddings_cache[cache_key]
 
-        # Use encoder if available, otherwise return mock embedding
-        embedding: NDArray[np.float64]
-        if self.encoder:
-            embedding = self.encoder.encode(text)
-        else:
-            # Mock embedding based on text length and content
-            embedding = np.array([0.5, 0.5], dtype=np.float64)  # Simplified for testing
+        # Generate embedding using sentence transformer
+        embedding_result = self.encoder.encode(text)
+        # Convert to numpy array if needed
+        embedding: NDArray[np.float64] = np.array(embedding_result, dtype=np.float64)
 
         if cache_key:
             self._tool_embeddings_cache[cache_key] = embedding
