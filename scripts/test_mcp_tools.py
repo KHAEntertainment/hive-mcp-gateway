@@ -20,7 +20,7 @@ async def test_mcp_tools():
     async with httpx.AsyncClient() as client:
         # 1. List MCP servers
         console.print("\n[bold cyan]1. Listing MCP Servers[/bold cyan]")
-        response = await client.get(f"{BASE_URL}/api/v1/mcp/servers")
+        response = await client.get(f"{BASE_URL}/api/mcp/servers")
         if response.status_code == 200:
             servers = response.json()
             console.print(f"Found {len(servers)} servers: {', '.join(servers)}")
@@ -30,7 +30,7 @@ async def test_mcp_tools():
         # 2. Test tool discovery
         console.print("\n[bold cyan]2. Testing Tool Discovery[/bold cyan]")
         response = await client.post(
-            f"{BASE_URL}/api/v1/tools/discover",
+            f"{BASE_URL}/api/tools/discover",
             json={
                 "query": "I need to work with git repositories and version control",
                 "tags": ["git", "repository"],
@@ -63,7 +63,7 @@ async def test_mcp_tools():
         # 3. Register a test MCP server
         console.print("\n[bold cyan]3. Registering Test MCP Server[/bold cyan]")
         response = await client.post(
-            f"{BASE_URL}/api/v1/mcp/servers/register",
+            f"{BASE_URL}/api/mcp/servers/register",
             json={
                 "name": "git-test",
                 "config": {
@@ -95,11 +95,11 @@ async def test_fastapi_mcp_info():
     console.print("\nFastAPI-MCP automatically exposes these endpoints as MCP tools:")
     
     endpoints = [
-        ("discover_tools", "POST /api/v1/tools/discover", "Find relevant tools"),
-        ("provision_tools", "POST /api/v1/tools/provision", "Select tools within budget"),
-        ("register_tool", "POST /api/v1/tools/register", "Register a new tool"),
-        ("list_mcp_servers", "GET /api/v1/mcp/servers", "List all MCP servers"),
-        ("register_mcp_server", "POST /api/v1/mcp/servers/register", "Register MCP server"),
+        ("discover_tools", "POST /api/tools/discover", "Find relevant tools"),
+        ("provision_tools", "POST /api/tools/provision", "Select tools within budget"),
+        ("register_tool", "POST /api/tools/register", "Register a new tool"),
+        ("list_mcp_servers", "GET /api/mcp/servers", "List all MCP servers"),
+        ("register_mcp_server", "POST /api/mcp/servers/register", "Register MCP server"),
     ]
     
     table = Table(title="Available MCP Tools")

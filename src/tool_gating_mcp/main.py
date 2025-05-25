@@ -24,9 +24,6 @@ app = FastAPI(
 app.include_router(tools.router)
 app.include_router(mcp.router)
 
-# Mount MCP server (makes endpoints available at /mcp)
-# Note: mcp.mount() is already called in mcp_server.py
-
 
 @app.get("/")
 async def root() -> dict[str, str]:
@@ -38,3 +35,22 @@ async def root() -> dict[str, str]:
 async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy", message="Service is running")
+
+
+# Create and mount MCP server AFTER all routes are defined
+from fastapi_mcp import FastApiMCP
+
+mcp_server = FastApiMCP(
+    app,
+    name="tool-gating",
+    description=(
+        "Intelligently manage MCP tools to prevent context bloat. "
+        "Discover and provision only the most relevant tools for each task."
+    )
+)
+
+# Mount the MCP server to make it available at /mcp endpoint
+mcp_server.mount()
+
+# Ensure all tools are properly registered after mounting
+mcp_server.setup_server()
