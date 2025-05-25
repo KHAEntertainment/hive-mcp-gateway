@@ -57,3 +57,15 @@ class GatingService:
             mcp_tools.append(mcp_tool)
 
         return mcp_tools
+    
+    def _format_tools_for_mcp(self, tools: list[Tool]) -> list[MCPTool]:
+        """Convert internal tool format to MCP protocol format (sync version)."""
+        mcp_tools = []
+        for tool in tools:
+            mcp_tool = MCPTool(
+                name=tool.name,
+                description=tool.description,
+                inputSchema=tool.parameters or {"type": "object"},
+            )
+            mcp_tools.append(mcp_tool)
+        return mcp_tools

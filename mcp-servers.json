@@ -1,0 +1,23 @@
+{
+  "context7": {
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp@latest"]
+  },
+  "desktop-commander": {
+    "command": "npx",
+    "args": ["@wonderwhy-er/desktop-commander@latest"]
+  },
+  "exa": {
+    "command": "exa-mcp-server",
+    "args": [
+      "--tools=web_search_exa,research_paper_search,twitter_search,company_research,crawling,competitor_finder,linkedin_search"
+    ],
+    "env": {
+      "EXA_API_KEY": "b2491db3-f3de-4b99-a510-a6b81a179cdb"
+    }
+  },
+  "basic-memory": {
+    "command": "/Users/andremachon/.local/bin/uvx",
+    "args": ["basic-memory", "mcp"]
+  }
+}

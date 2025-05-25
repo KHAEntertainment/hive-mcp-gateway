@@ -100,3 +100,17 @@ class DiscoveryService:
             return 0.0
 
         return float(dot_product / (norm1 * norm2))
+    
+    async def search_tools(
+        self,
+        query: str,
+        tags: list[str] | None = None,
+        top_k: int = 10,
+    ) -> list[ToolMatch]:
+        """Search for tools using semantic search (simplified interface)."""
+        return await self.find_relevant_tools(
+            query=query,
+            context=None,
+            tags=tags,
+            limit=top_k
+        )

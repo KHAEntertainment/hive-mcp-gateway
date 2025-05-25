@@ -49,6 +49,21 @@ class InMemoryToolRepository:
         if tool_id in self._tools:
             self._usage_counts[tool_id] = self._usage_counts.get(tool_id, 0) + 1
 
+    # Sync helper methods for testing
+    def add_tool(self, tool: Tool) -> None:
+        """Add a tool to the repository (sync version)."""
+        self._tools[tool.id] = tool
+        if tool.id not in self._usage_counts:
+            self._usage_counts[tool.id] = 0
+    
+    def get_tool(self, tool_id: str) -> Tool | None:
+        """Get a tool by ID (sync version)."""
+        return self._tools.get(tool_id)
+    
+    def list_all_tools(self) -> list[Tool]:
+        """Get all tools (sync version)."""
+        return list(self._tools.values())
+    
     async def populate_demo_tools(self) -> None:
         """Populate repository with demo tools."""
         demo_tools = [

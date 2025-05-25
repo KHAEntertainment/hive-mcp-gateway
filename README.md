@@ -1,15 +1,40 @@
 # Tool Gating MCP
 
-An intelligent tool gating system for Model Context Protocol (MCP) that dynamically limits the number of tools exposed to LLMs. This system reduces token usage and improves response quality through semantic search and context-aware tool selection.
+An intelligent tool gating system for Model Context Protocol (MCP) that dynamically limits which tools from multiple MCP servers are exposed to LLMs. This system solves the context bloat problem by selectively provisioning only the most relevant tools instead of overwhelming LLMs with all available tools from all connected servers.
+
+## 🎯 The Problem
+
+When integrating multiple MCP servers, each exposing numerous tools:
+- **Exa server**: 7 search tools (web, research papers, Twitter, companies, etc.)
+- **Desktop Commander**: 18+ automation tools
+- **Context7**: Multiple documentation tools
+- **Basic Memory**: Storage and retrieval tools
+
+Without gating, an LLM would receive **all 40+ tools** in its context, leading to:
+- 🚨 **Context bloat**: Reduced quality as LLMs struggle with too many options
+- 💸 **Increased costs**: More tokens consumed per request
+- 🐌 **Slower responses**: Processing overhead from irrelevant tools
+- 🎯 **Poor tool selection**: LLMs may choose suboptimal tools
+
+## 💡 The Solution
+
+Tool Gating MCP acts as an intelligent middleware that:
+1. **Discovers** all available tools from connected MCP servers
+2. **Understands** what the LLM needs through semantic search
+3. **Selects** only the most relevant tools within token budgets
+4. **Provisions** a focused subset (e.g., 1 Exa search + 1 file editor)
+
+**Example**: Instead of 40+ tools consuming 8,000 tokens, provision just 2-3 relevant tools using only 500 tokens.
 
 ## 🚀 Features
 
-- **Semantic Tool Discovery**: Uses sentence transformers to find relevant tools based on natural language queries
-- **Token Budget Management**: Enforces token limits to optimize LLM context usage
-- **Smart Tool Selection**: Intelligently gates tools based on relevance scores and token budgets
-- **Tag-Based Filtering**: Support for hierarchical tool categorization
-- **MCP Protocol Compatible**: Outputs tools in MCP format for LLM consumption
-- **RESTful API**: Easy integration with existing systems
+- **Cross-Server Tool Discovery**: Aggregates tools from multiple MCP servers into a unified registry
+- **Semantic Search**: Uses sentence transformers to understand tool purpose and match queries
+- **Selective Provisioning**: Returns only relevant tools from specific servers (e.g., 1 from Exa, 1 from Desktop Commander)
+- **Token Budget Enforcement**: Ensures selected tools fit within LLM context limits
+- **Smart Scoring**: Combines semantic similarity with tag matching for accurate tool selection
+- **MCP Protocol Compatible**: Outputs tools in standard MCP format for direct LLM consumption
+- **RESTful API**: Easy integration with any LLM orchestration system
 
 ## 📋 Prerequisites
 
@@ -125,6 +150,44 @@ Select and format tools for LLM consumption with token budget enforcement.
 ```
 
 
+## 🔄 Typical Workflow
+
+1. **MCP Servers Running**: Multiple MCP servers expose their tools
+   ```
+   exa-server → 7 search tools
+   desktop-commander → 18 automation tools
+   context7 → 5 documentation tools
+   ```
+
+2. **Tool Registration**: Tool Gating MCP discovers and indexes all tools
+   ```python
+   # System discovers 30+ total tools across servers
+   ```
+
+3. **LLM Query**: "I need to search for research papers and save results to a file"
+
+4. **Semantic Discovery**: System finds relevant tools
+   ```json
+   {
+     "exa_research_paper_search": 0.92,  // High relevance
+     "desktop_file_write": 0.88,          // High relevance
+     "exa_web_search": 0.65,              // Medium relevance
+     "desktop_screenshot": 0.12,          // Low relevance
+     ...
+   }
+   ```
+
+5. **Selective Provisioning**: Only top tools within budget
+   ```json
+   {
+     "tools": [
+       {"name": "research_paper_search", "server": "exa", "tokens": 250},
+       {"name": "file_write", "server": "desktop-commander", "tokens": 150}
+     ],
+     "total_tokens": 400  // Well within budget!
+   }
+   ```
+
 ## 🎯 Usage Examples
 
 ### Running the Demo
@@ -219,7 +282,6 @@ tool-gating-mcp/
 │       └── services/
 │           ├── discovery.py     # Semantic search
 │           ├── gating.py        # Tool selection logic
-│           ├── proxy.py         # MCP proxy
 │           └── repository.py    # Tool storage
 ├── tests/
 │   ├── test_*.py               # Test files
@@ -228,6 +290,50 @@ tool-gating-mcp/
 ├── test_server.py              # Manual testing script
 └── pyproject.toml              # Project configuration
 ```
+
+## 🔌 Integration with MCP Servers
+
+### Registering Tools from MCP Servers
+
+```python
+# 1. Clear existing demo tools
+DELETE /api/v1/tools/clear
+
+# 2. Register tools from your MCP servers
+POST /api/v1/tools/register
+{
+  "id": "exa_research_paper_search",
+  "name": "research_paper_search",
+  "description": "Search across 100M+ research papers with full text access",
+  "tags": ["search", "research", "academic"],
+  "estimated_tokens": 250,
+  "server": "exa",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {"type": "string"},
+      "numResults": {"type": "number", "default": 5}
+    },
+    "required": ["query"]
+  }
+}
+```
+
+### Using with LLM Orchestration
+
+1. **LLM receives user query**: "Find recent papers on quantum computing"
+2. **Orchestrator queries tool gating**: 
+   ```
+   POST /api/v1/tools/discover
+   {"query": "find research papers", "limit": 3}
+   ```
+3. **System returns relevant tools**: Only research tools, not file editors
+4. **Orchestrator provisions tools**:
+   ```
+   POST /api/v1/tools/provision
+   {"tool_ids": ["exa_research_paper_search"], "max_tokens": 500}
+   ```
+5. **LLM executes directly with MCP server**: Using the provisioned tool definition
 
 ## 🧑‍💻 Development
 

@@ -21,6 +21,9 @@ class Tool(BaseModel):
     parameters: dict[str, Any] | None = Field(
         default=None, description="Tool parameter schema"
     )
+    server: str | None = Field(
+        default=None, description="MCP server that provides this tool"
+    )
 
     @field_validator("id")
     @classmethod

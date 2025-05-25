@@ -15,6 +15,7 @@ from ...api.models import (
     ToolProvisionRequest,
     ToolProvisionResponse,
 )
+from ...models.tool import Tool
 from ...services.discovery import DiscoveryService
 from ...services.gating import GatingService
 
@@ -61,11 +62,10 @@ async def discover_tools(
     discovery_service: DiscoveryService = Depends(get_discovery_service),  # noqa: B008
 ) -> ToolDiscoveryResponse:
     """Discover relevant tools based on query and context."""
-    tools = await discovery_service.find_relevant_tools(
+    tools = await discovery_service.search_tools(
         query=request.query,
-        context=request.context,
         tags=request.tags,
-        limit=request.limit or 10,
+        top_k=request.limit or 10,
     )
 
     # Convert to response format
@@ -77,6 +77,7 @@ async def discover_tools(
             score=match.score,
             matched_tags=match.matched_tags,
             estimated_tokens=match.tool.estimated_tokens,
+            server=match.tool.server,
         )
         for match in tools
     ]
@@ -108,8 +109,9 @@ async def provision_tools(
             description=tool.description,
             parameters=tool.inputSchema,
             token_count=100,  # Simplified for now
+            server=getattr(selected_tools[i], 'server', None),
         )
-        for tool in mcp_tools
+        for i, tool in enumerate(mcp_tools)
     ]
 
     return ToolProvisionResponse(
@@ -119,6 +121,25 @@ async def provision_tools(
             "gating_applied": True,
         },
     )
+
+
+@router.post("/register")
+async def register_tool(
+    tool: Tool,
+    tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
+) -> dict[str, str]:
+    """Register a new tool in the system."""
+    tool_repo.add_tool(tool)
+    return {"status": "success", "tool_id": tool.id}
+
+
+@router.delete("/clear")
+async def clear_tools(
+    tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
+) -> dict[str, str]:
+    """Clear all tools from the repository."""
+    tool_repo.tools.clear()
+    return {"status": "success", "message": "All tools cleared"}
 
 
 # Note: Tool execution proxy endpoint removed

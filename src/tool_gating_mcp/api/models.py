@@ -37,6 +37,7 @@ class ToolMatchResponse(BaseModel):
     score: float = Field(..., ge=0, le=1)
     matched_tags: list[str]
     estimated_tokens: int
+    server: str | None = None
 
 
 class ToolDiscoveryResponse(BaseModel):
@@ -62,6 +63,7 @@ class MCPToolDefinition(BaseModel):
     description: str
     parameters: dict[str, Any]
     token_count: int
+    server: str | None = None
 
 
 class ToolProvisionResponse(BaseModel):
