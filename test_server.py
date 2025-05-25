@@ -44,20 +44,10 @@ async def test_server():
         print(f"Provisioned {len(provision_data['tools'])} tools")
         print(f"Total tokens: {provision_data['metadata']['total_tokens']}")
         
-        # Test execution (will fail but that's expected)
-        print("\nTesting tool execution (expected to fail)...")
-        exec_response = await client.post(
-            "/api/v1/tools/execute/calculator",
-            json={
-                "parameters": {"expression": "2 + 2"}
-            }
-        )
-        print(f"Execution status: {exec_response.status_code}")
-        exec_data = exec_response.json()
-        if exec_data.get("error"):
-            print(f"Error (expected): {exec_data['error']}")
-        else:
-            print(f"Result: {exec_data}")
+        # Note: Tool execution removed
+        # The gating system only provides tool definitions
+        # LLMs should execute tools directly with MCP servers
+        print("\nNote: Tool execution is handled by LLMs directly with MCP servers")
 
 
 if __name__ == "__main__":

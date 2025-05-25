@@ -124,41 +124,9 @@ def test_provision_tools_empty_request(client, mock_gating_service):
     assert data["tools"] == []
 
 
-def test_execute_tool_endpoint(client):
-    """Test POST /api/v1/tools/execute/{tool_id} endpoint."""
-    with patch(
-        "tool_gating_mcp.services.proxy.ProxyService.execute_tool"
-    ) as mock_execute:
-        mock_execute.return_value = {"result": 42}
-
-        response = client.post(
-            "/api/v1/tools/execute/calc-1",
-            json={"parameters": {"operation": "add", "a": 20, "b": 22}},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["result"] == {"result": 42}
-
-        # Verify the mock was called with correct parameters
-        mock_execute.assert_called_once()
-        call_kwargs = mock_execute.call_args.kwargs
-        assert call_kwargs["tool_id"] == "calc-1"
-        assert call_kwargs["params"] == {"operation": "add", "a": 20, "b": 22}
-
-
-def test_execute_tool_not_found(client):
-    """Test executing non-existent tool."""
-    with patch(
-        "tool_gating_mcp.services.proxy.ProxyService.execute_tool"
-    ) as mock_execute:
-        mock_execute.side_effect = ValueError("Tool not found")
-
-        response = client.post(
-            "/api/v1/tools/execute/invalid-tool", json={"parameters": {}}
-        )
-
-        assert response.status_code == 404
+# Note: Tool execution tests removed
+# The tool gating system only provides tool definitions
+# LLMs should execute tools directly with MCP servers
 
 
 def test_health_endpoint_still_works(client):

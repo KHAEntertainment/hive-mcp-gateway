@@ -60,19 +60,8 @@ class TestIntegration:
         assert calc_tool is not None
         assert calc_tool["parameters"]["type"] == "object"
         
-        # 3. Execute a tool (will fail as proxy not implemented)
-        execute_response = client.post(
-            "/api/v1/tools/execute/calculator",
-            json={
-                "parameters": {
-                    "expression": "2 + 2"
-                }
-            }
-        )
-        # Expect error since proxy not implemented
-        assert execute_response.status_code == 200
-        execute_data = execute_response.json()
-        assert execute_data["error"] is not None  # Mock returns error
+        # Note: Tool execution removed - LLMs should execute directly with MCP servers
+        # The gating system only provides tool definitions, not execution
         
     def test_semantic_search_quality(self, client):
         """Test semantic search returns relevant results."""

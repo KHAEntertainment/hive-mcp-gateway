@@ -7,8 +7,6 @@ from tool_gating_mcp.api.models import (
     MCPToolDefinition,
     ToolDiscoveryRequest,
     ToolDiscoveryResponse,
-    ToolExecutionRequest,
-    ToolExecutionResponse,
     ToolMatchResponse,
     ToolProvisionRequest,
     ToolProvisionResponse,
@@ -113,55 +111,9 @@ class TestToolProvisionModels:
         assert response.metadata["gating_applied"] is True
 
 
-class TestToolExecutionModels:
-    def test_execution_request_simple(self):
-        request = ToolExecutionRequest(parameters={"input": "test"})
-
-        assert request.parameters == {"input": "test"}
-
-    def test_execution_request_complex(self):
-        complex_params = {
-            "query": "search term",
-            "filters": {
-                "date_range": {"from": "2024-01-01", "to": "2024-12-31"},
-                "categories": ["tech", "science"],
-                "limit": 100,
-            },
-            "options": {"sort": "relevance", "include_metadata": True},
-        }
-
-        request = ToolExecutionRequest(parameters=complex_params)
-
-        assert request.parameters == complex_params
-        assert request.parameters["filters"]["categories"] == ["tech", "science"]
-
-    def test_execution_response(self):
-        response = ToolExecutionResponse(
-            result={
-                "status": "success",
-                "data": [1, 2, 3, 4, 5],
-                "metadata": {"execution_time": 0.123, "tool_version": "1.0.0"},
-            }
-        )
-
-        assert response.result["status"] == "success"
-        assert response.result["data"] == [1, 2, 3, 4, 5]
-        assert response.result["metadata"]["execution_time"] == 0.123
-
-    def test_execution_response_error(self):
-        response = ToolExecutionResponse(
-            result={
-                "status": "error",
-                "error": {
-                    "code": "TOOL_ERROR",
-                    "message": "Failed to execute tool",
-                    "details": {"reason": "Invalid parameters"},
-                },
-            }
-        )
-
-        assert response.result["status"] == "error"
-        assert response.result["error"]["code"] == "TOOL_ERROR"
+# Note: Tool execution tests removed
+# The tool gating system only provides tool definitions
+# LLMs should execute tools directly with MCP servers
 
 
 class TestSharedModels:

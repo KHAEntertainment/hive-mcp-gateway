@@ -11,15 +11,12 @@ from ...api.models import (
     MCPToolDefinition,
     ToolDiscoveryRequest,
     ToolDiscoveryResponse,
-    ToolExecutionRequest,
-    ToolExecutionResponse,
     ToolMatchResponse,
     ToolProvisionRequest,
     ToolProvisionResponse,
 )
 from ...services.discovery import DiscoveryService
 from ...services.gating import GatingService
-from ...services.proxy import ProxyService
 
 router = APIRouter(prefix="/api/v1/tools", tags=["tools"])
 
@@ -50,11 +47,6 @@ async def get_gating_service() -> GatingService:
     """Get gating service instance."""
     repo = await get_tool_repository()
     return GatingService(tool_repo=repo)
-
-
-def get_proxy_service() -> ProxyService:
-    """Get proxy service instance."""
-    return ProxyService()
 
 
 def get_current_user() -> dict[str, str]:
@@ -129,20 +121,6 @@ async def provision_tools(
     )
 
 
-@router.post("/execute/{tool_id}", response_model=ToolExecutionResponse)
-async def execute_tool(
-    tool_id: str,
-    request: ToolExecutionRequest,
-    proxy_service: ProxyService = Depends(get_proxy_service),  # noqa: B008
-    user: dict[str, str] = Depends(get_current_user),  # noqa: B008
-) -> ToolExecutionResponse:
-    """Execute a tool by proxying to the appropriate MCP server."""
-    try:
-        result = await proxy_service.execute_tool(
-            tool_id=tool_id, params=request.parameters, user_context=user
-        )
-        return ToolExecutionResponse(result=result)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except Exception as e:
-        return ToolExecutionResponse(result=None, error=str(e))
+# Note: Tool execution proxy endpoint removed
+# The tool gating system's responsibility is to provide tool definitions,
+# not to execute them. LLMs should execute tools directly with MCP servers.

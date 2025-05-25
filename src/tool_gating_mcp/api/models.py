@@ -71,15 +71,6 @@ class ToolProvisionResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class ToolExecutionRequest(BaseModel):
-    """Request model for tool execution proxy."""
-
-    parameters: dict[str, Any] = Field(..., description="Tool execution parameters")
-
-
-class ToolExecutionResponse(BaseModel):
-    """Response model for tool execution proxy."""
-
-    result: Any
-    execution_time: float | None = None
-    error: str | None = None
+# Note: Tool execution models removed
+# The tool gating system only provides tool definitions
+# LLMs should execute tools directly with MCP servers

@@ -124,11 +124,6 @@ Select and format tools for LLM consumption with token budget enforcement.
 }
 ```
 
-### Tool Execution (Proxy)
-```bash
-POST /api/v1/tools/execute/{tool_id}
-```
-Execute tools by proxying to appropriate MCP servers.
 
 ## 🎯 Usage Examples
 
