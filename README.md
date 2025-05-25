@@ -34,9 +34,10 @@ Tool Gating MCP acts as an intelligent middleware that:
 - **Token Budget Enforcement**: Ensures selected tools fit within LLM context limits
 - **Smart Scoring**: Combines semantic similarity with tag matching for accurate tool selection
 - **MCP Protocol Compatible**: Outputs tools in standard MCP format for direct LLM consumption
-- **Native MCP Server**: Built-in MCP endpoint at `/mcp` using FastAPI-MCP
+- **Native MCP Server**: Works directly with Claude Desktop and other MCP clients
 - **Dual Transport Support**: HTTP/SSE for web clients, stdio for Claude Desktop (via mcp-proxy)
 - **RESTful API**: Easy integration with any LLM orchestration system
+- **Simplified API**: Clean endpoint structure at `/api/tools/*` and `/api/mcp/*`
 
 ## 📋 Prerequisites
 
@@ -87,30 +88,52 @@ API documentation available at:
 - ReDoc: `http://localhost:8000/redoc`
 - MCP Endpoint: `http://localhost:8000/mcp` (SSE transport)
 
-### As MCP Server for Claude Desktop
+### As MCP Server (Recommended)
+
+Tool Gating MCP is now a native MCP server that works directly with Claude Desktop:
+
+1. **Start the server**:
+   ```bash
+   tool-gating-mcp
+   ```
+
+2. **Install mcp-proxy** (if not already installed):
+   ```bash
+   uv tool install mcp-proxy
+   ```
+
+3. **Add to Claude Desktop**:
+   
+   Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "tool-gating": {
+         "command": "/Users/YOUR_USERNAME/.local/bin/mcp-proxy",
+         "args": ["http://localhost:8000/mcp"]
+       }
+     }
+   }
+   ```
+   
+   Note: Replace `YOUR_USERNAME` with your actual username.
+
+4. **Restart Claude Desktop**
+
+You'll see Tool Gating's tools available in Claude, including:
+- `discover_tools` - Find relevant tools based on queries
+- `provision_tools` - Select tools within token budgets
+- `register_tool` - Add new tools to the registry
+- `list_mcp_servers` - View registered MCP servers
+- And more!
 
 See [MCP Native Usage Guide](docs/MCP_NATIVE_USAGE.md) for detailed instructions.
-
-Quick setup:
-1. Run the server: `tool-gating-mcp`
-2. Install mcp-proxy: `uv tool install mcp-proxy`
-3. Add to Claude Desktop config:
-```json
-{
-  "mcpServers": {
-    "tool-gating": {
-      "command": "mcp-proxy",
-      "args": ["http://localhost:8000/mcp"]
-    }
-  }
-}
-```
 
 ## 🔍 API Endpoints
 
 ### Tool Discovery
 ```bash
-POST /api/v1/tools/discover
+POST /api/tools/discover
 ```
 Discover relevant tools based on semantic search.
 
@@ -143,7 +166,7 @@ Discover relevant tools based on semantic search.
 
 ### Tool Provisioning
 ```bash
-POST /api/v1/tools/provision
+POST /api/tools/provision
 ```
 Select and format tools for LLM consumption with token budget enforcement.
 
@@ -240,7 +263,7 @@ import asyncio
 async def find_math_tools():
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:8000/api/v1/tools/discover",
+            "http://localhost:8000/api/tools/discover",
             json={
                 "query": "I need to solve equations",
                 "tags": ["math"],
@@ -306,8 +329,8 @@ tool-gating-mcp/
 │       ├── main.py              # FastAPI application
 │       ├── api/
 │       │   ├── models.py        # Pydantic models
-│       │   └── v1/
-│       │       └── tools.py     # API endpoints
+│       │   ├── tools.py         # Tool management endpoints
+│       │   └── mcp.py           # MCP server endpoints
 │       ├── models/
 │       │   └── tool.py          # Domain models
 │       └── services/
@@ -328,10 +351,10 @@ tool-gating-mcp/
 
 ```python
 # 1. Clear existing demo tools
-DELETE /api/v1/tools/clear
+DELETE /api/tools/clear
 
 # 2. Register tools from your MCP servers
-POST /api/v1/tools/register
+POST /api/tools/register
 {
   "id": "exa_research_paper_search",
   "name": "research_paper_search",
@@ -355,13 +378,13 @@ POST /api/v1/tools/register
 1. **LLM receives user query**: "Find recent papers on quantum computing"
 2. **Orchestrator queries tool gating**: 
    ```
-   POST /api/v1/tools/discover
+   POST /api/tools/discover
    {"query": "find research papers", "limit": 3}
    ```
 3. **System returns relevant tools**: Only research tools, not file editors
 4. **Orchestrator provisions tools**:
    ```
-   POST /api/v1/tools/provision
+   POST /api/tools/provision
    {"tool_ids": ["exa_research_paper_search"], "max_tokens": 500}
    ```
 5. **LLM executes directly with MCP server**: Using the provisioned tool definition
@@ -374,7 +397,7 @@ AI assistants can automatically add new MCP servers:
 # User: "Add this Slack MCP server to tool gating"
 # AI: Connects to server, discovers tools, and registers everything
 
-POST /api/v1/mcp/ai/register-server
+POST /api/mcp/ai/register-server
 {
   "server_name": "slack",
   "config": {

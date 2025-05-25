@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tool Gating MCP is a production-ready FastAPI service that intelligently manages MCP (Model Context Protocol) tools to prevent context window bloat. It enables AI assistants to work efficiently with hundreds of tools by selecting only the most relevant ones for each task.
+Tool Gating MCP is a native MCP server built with FastAPI that intelligently manages MCP (Model Context Protocol) tools to prevent context window bloat. It enables AI assistants to work efficiently with hundreds of tools by selecting only the most relevant ones for each task.
 
 ### Key Features
 - **Semantic Tool Discovery**: Natural language queries find the right tools
@@ -15,11 +15,12 @@ Tool Gating MCP is a production-ready FastAPI service that intelligently manages
 ### Why This Matters for Claude
 Without tool gating, loading all available MCP tools (100+) quickly exhausts the context window. This system lets you access any tool when needed while keeping only 3-5 relevant tools active at once.
 
-### Native MCP Integration ✨
-Tool Gating is now itself an MCP server! This means:
-- Claude Desktop can connect to it directly via MCP protocol
-- Use Tool Gating's tools (`discover_tools`, `provision_tools`) natively
+### Native MCP Server ✨
+Tool Gating is a native MCP server that exposes all its endpoints as MCP tools:
+- Direct integration with Claude Desktop via mcp-proxy
+- Clean tool names: `discover_tools`, `provision_tools`, etc.
 - Meta-level efficiency: An MCP server that manages other MCP servers
+- Simplified API structure: `/api/tools/*` and `/api/mcp/*` (no versioning)
 
 ## How to Use This System
 
@@ -64,8 +65,9 @@ The project implements a sophisticated tool management system:
 - **`models/tool.py`**: Tool definitions with MCP protocol support
 
 ### API Structure
-- **`/api/v1/tools/`**: Tool discovery and provisioning endpoints
-- **`/api/v1/mcp/`**: MCP server registration and management
+- **`/api/tools/`**: Tool discovery and provisioning endpoints
+- **`/api/mcp/`**: MCP server registration and management
+- **`/mcp`**: Native MCP server endpoint (SSE transport)
 - **`/health`**: Service health check
 
 ### Key Patterns

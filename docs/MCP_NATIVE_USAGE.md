@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tool Gating MCP now includes a built-in MCP server endpoint that exposes all FastAPI endpoints as MCP tools. The server runs at `/mcp` when the FastAPI app is running.
+Tool Gating MCP is now a native MCP server that exposes all its API endpoints as MCP tools. When you run the server, it automatically provides an MCP endpoint at `/mcp` that works with Claude Desktop and other MCP clients.
 
 ## Two Ways to Use Tool Gating as MCP
 
@@ -39,7 +39,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "tool-gating": {
-      "command": "mcp-proxy",
+      "command": "/Users/YOUR_USERNAME/.local/bin/mcp-proxy",
       "args": ["http://localhost:8000/mcp"]
     }
   }
@@ -53,29 +53,15 @@ tool-gating-mcp
 
 4. Restart Claude Desktop
 
-#### Direct stdio Mode (Alternative)
-
-Add to Claude Desktop configuration:
-
-```json
-{
-  "mcpServers": {
-    "tool-gating": {
-      "command": "tool-gating-mcp",
-      "args": ["--mcp"],
-      "env": {}
-    }
-  }
-}
-```
-
-This will start the server and use mcp-proxy internally to bridge to stdio.
+Note: Replace `YOUR_USERNAME` with your actual username. The full path is required because Claude Desktop may not have access to your shell's PATH.
 
 ## Available MCP Tools
 
 When connected as an MCP server, Tool Gating provides these tools:
 
-### 1. `discover_tools`
+### Core Tools
+
+#### 1. `discover_tools`
 Discover relevant tools based on natural language queries.
 
 **Parameters:**
@@ -92,7 +78,7 @@ Discover relevant tools based on natural language queries.
 }
 ```
 
-### 2. `provision_tools`
+#### 2. `provision_tools`
 Select and provision tools within a token budget.
 
 **Parameters:**
@@ -108,7 +94,9 @@ Select and provision tools within a token budget.
 }
 ```
 
-### 3. `register_mcp_server`
+### MCP Server Management
+
+#### 3. `register_mcp_server`
 Register a new MCP server with the system.
 
 **Parameters:**
@@ -132,12 +120,22 @@ Register a new MCP server with the system.
 }
 ```
 
-### 4. `list_mcp_servers`
+#### 4. `list_mcp_servers`
 List all registered MCP servers.
 
 **Parameters:** None
 
-### 5. `register_tool`
+#### 5. `ai_register_mcp_server`
+Streamlined endpoint for AI assistants to register an MCP server with all its tools.
+
+**Parameters:**
+- `server_name` (string, required): Unique server name
+- `config` (object, required): Server configuration
+- `tools` (array, required): List of discovered tools
+
+### Tool Management
+
+#### 6. `register_tool`
 Register an individual tool.
 
 **Parameters:**
@@ -180,54 +178,67 @@ Register the "code-analysis" MCP server
 
 ## Advanced Configuration
 
-### Custom Token Limits
+### Testing the Integration
 
-Set default token budgets via environment:
+1. **Verify server is running**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
 
-```json
-{
-  "mcpServers": {
-    "tool-gating": {
-      "command": "tool-gating-mcp",
-      "args": ["--mcp"],
-      "env": {
-        "DEFAULT_TOKEN_BUDGET": "1000",
-        "MAX_TOOLS": "5"
-      }
-    }
-  }
-}
-```
+2. **Check MCP endpoint**:
+   ```bash
+   curl -H "Accept: text/event-stream" http://localhost:8000/mcp
+   ```
 
-### Development Mode
-
-For testing with HTTP transport:
-
-```bash
-# Run as HTTP MCP server
-tool-gating-mcp --mcp --http
-
-# Access at http://localhost:8000/mcp
-```
+3. **Test with the provided script**:
+   ```bash
+   python scripts/test_mcp_tools.py
+   ```
 
 ## Troubleshooting
 
-### Tools Not Appearing
-1. Check Claude Desktop logs
-2. Verify installation: `which tool-gating-mcp`
-3. Test standalone: `tool-gating-mcp --mcp --test`
+### Tools Not Appearing in Claude Desktop
 
-### Connection Issues
-1. Ensure no other process is using the stdio transport
-2. Check file permissions on the executable
-3. Verify Python environment is activated
+1. **Check mcp-proxy path**: Claude Desktop needs the full path to mcp-proxy
+   ```bash
+   which mcp-proxy
+   # Should show: /Users/YOUR_USERNAME/.local/bin/mcp-proxy
+   ```
+
+2. **Verify server is running**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+3. **Check Claude Desktop logs**:
+   - Open Claude Desktop DevTools (Cmd+Option+I)
+   - Look for MCP connection errors
+
+### Common Issues
+
+1. **"spawn mcp-proxy ENOENT" error**: 
+   - Solution: Use full path to mcp-proxy in config
+   
+2. **"Address already in use" error**:
+   - Solution: Kill existing process: `pkill -f tool-gating-mcp`
+   
+3. **Tools have verbose names**:
+   - This has been fixed! Tools now have clean names like `discover_tools`
 
 ## Integration with Other MCP Servers
 
 Tool Gating MCP is designed to work alongside other MCP servers:
 
-1. **Initial Setup**: Only Tool Gating is loaded
-2. **On Demand**: Use Tool Gating to discover and load other servers
-3. **Optimal Context**: Only relevant tools are active at any time
+1. **Initial Setup**: Only Tool Gating is loaded in Claude Desktop
+2. **Dynamic Discovery**: Use Tool Gating to find relevant tools across all registered servers
+3. **Selective Loading**: Provision only the tools you need for the current task
+4. **Context Optimization**: Stay within token budgets while maximizing capability
+
+### Example Workflow
+
+1. User: "I need to search for research papers and save them"
+2. Use `discover_tools` → Finds: `exa_research_paper_search`, `file_write`
+3. Use `provision_tools` → Loads only these 2 tools (400 tokens vs 8000 for all)
+4. Execute tasks with optimal context
 
 This creates a dynamic, efficient tool ecosystem that adapts to your current task!

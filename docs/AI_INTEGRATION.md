@@ -18,7 +18,7 @@ When a user provides you with an MCP server configuration, follow these steps:
 1. **Register the server and its tools in one call:**
 
 ```bash
-POST http://localhost:8000/api/v1/mcp/ai/register-server
+POST http://localhost:8000/api/mcp/ai/register-server
 
 {
   "server_name": "slack",
@@ -105,7 +105,7 @@ When you call the discover endpoint, the system:
 3. Automatically registers everything
 
 ```bash
-POST http://localhost:8000/api/v1/mcp/discover
+POST http://localhost:8000/api/mcp/discover
 {
   "server_name": "github",
   "config": {
@@ -163,7 +163,7 @@ def estimate_tokens(tool):
 4. Call the registration endpoint:
 
 ```json
-POST /api/v1/mcp/ai/register-server
+POST /api/mcp/ai/register-server
 {
   "server_name": "slack",
   "config": {...},
@@ -191,8 +191,8 @@ I've successfully added the Slack MCP server to your Tool Gating system:
 Now when an LLM needs Slack functionality, it will only receive the specific tools needed (e.g., just send_message) instead of all 12 tools, reducing context usage by ~80%.
 
 You can test it:
-- Search: POST /api/v1/tools/discover {"query": "send slack message"}
-- Provision: POST /api/v1/tools/provision {"tool_ids": ["slack_send_message"]}
+- Search: POST /api/tools/discover {"query": "send slack message"}
+- Provision: POST /api/tools/provision {"tool_ids": ["slack_send_message"]}
 ```
 
 ## Benefits
@@ -206,7 +206,7 @@ You can test it:
 ## Troubleshooting
 
 ### "Server already exists"
-The server is already registered. Use DELETE `/api/v1/mcp/servers/{name}` first.
+The server is already registered. Use DELETE `/api/mcp/servers/{name}` first.
 
 ### "Failed to connect"
 Check that the MCP server command and credentials are correct.

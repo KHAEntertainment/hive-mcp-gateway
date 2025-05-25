@@ -27,7 +27,7 @@ In a production system, you would connect to the MCP server and call its `tools/
 Each tool from your MCP server needs to be registered with the following information:
 
 ```bash
-POST http://localhost:8000/api/v1/tools/register
+POST http://localhost:8000/api/tools/register
 Content-Type: application/json
 
 {
@@ -116,12 +116,12 @@ async def register_slack_tools():
     
     async with httpx.AsyncClient() as client:
         # Clear existing tools if needed
-        await client.delete("http://localhost:8000/api/v1/tools/clear")
+        await client.delete("http://localhost:8000/api/tools/clear")
         
         # Register each tool
         for tool in slack_tools:
             response = await client.post(
-                "http://localhost:8000/api/v1/tools/register",
+                "http://localhost:8000/api/tools/register",
                 json=tool
             )
             print(f"Registered {tool['name']}: {response.status_code}")
@@ -169,21 +169,21 @@ After registering your tools, test the integration:
 ```python
 # Test 1: Discover your tools
 response = await client.post(
-    "http://localhost:8000/api/v1/tools/discover",
+    "http://localhost:8000/api/tools/discover",
     json={"query": "send slack message", "limit": 5}
 )
 # Should find your slack_send_message tool with high score
 
 # Test 2: Cross-server search
 response = await client.post(
-    "http://localhost:8000/api/v1/tools/discover",
+    "http://localhost:8000/api/tools/discover",
     json={"query": "search messages in slack and save to file", "limit": 5}
 )
 # Should find both Slack search and file write tools
 
 # Test 3: Tag filtering
 response = await client.post(
-    "http://localhost:8000/api/v1/tools/discover",
+    "http://localhost:8000/api/tools/discover",
     json={"query": "communication", "tags": ["slack"], "limit": 5}
 )
 # Should prioritize Slack tools
