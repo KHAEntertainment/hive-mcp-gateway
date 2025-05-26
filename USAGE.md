@@ -1,15 +1,17 @@
-# Tool Gating MCP Usage Guide for AI Assistants
+# Tool Gating MCP Usage Guide
 
 ## Overview
 
-The Tool Gating MCP system helps you work efficiently with hundreds of MCP tools by intelligently selecting only the most relevant ones for each task. This prevents context window bloat and improves performance.
+Tool Gating MCP is an intelligent proxy that sits between Claude Desktop (or other MCP clients) and multiple MCP servers. It prevents context bloat by dynamically discovering and provisioning only the most relevant tools for each task.
 
 ## How It Works
 
-Instead of loading all available MCP tools (which could be 100+ tools across multiple servers), the Tool Gating system:
-1. **Discovers** relevant tools based on your query
-2. **Ranks** them by semantic similarity and tags
-3. **Provisions** only the most relevant tools within a token budget
+Instead of configuring 10+ MCP servers in Claude Desktop (100+ tools), you configure only Tool Gating:
+1. **Single Connection**: Claude connects only to Tool Gating MCP
+2. **Backend Management**: Tool Gating connects to all your MCP servers
+3. **Smart Discovery**: Find tools across all servers with natural language
+4. **Dynamic Provisioning**: Load only relevant tools within token budgets
+5. **Transparent Execution**: Use tools as if directly connected to servers
 
 ## Key Benefits
 
@@ -18,27 +20,36 @@ Instead of loading all available MCP tools (which could be 100+ tools across mul
 - **Cross-Server Intelligence**: Seamlessly combines tools from multiple MCP servers
 - **Semantic Understanding**: Natural language queries find the right tools
 
-## Usage Pattern
+## MCP Tools Available
 
-### 1. Discover Tools Based on Task
+When using Tool Gating as an MCP server, you have access to:
 
-```python
-# Instead of loading all tools, describe what you need
-response = discover_tools({
-    "query": "I need to search the web and take screenshots of results",
-    "tags": ["search", "browser"],  # Optional tag filtering
+### 1. `discover_tools` - Find relevant tools
+```json
+{
+    "query": "I need to search the web and take screenshots",
+    "tags": ["search", "browser"],  // Optional
     "limit": 10
-})
+}
 ```
 
-### 2. Provision Selected Tools
+### 2. `provision_tools` - Load selected tools
+```json
+{
+    "tool_ids": ["puppeteer_screenshot", "exa_web_search"],
+    "context_tokens": 500  // Token budget
+}
+```
 
-```python
-# Get only the tools you need with a token budget
-response = provision_tools({
-    "tool_ids": [/* selected tool IDs */],
-    "context_tokens": 500  # Stay within budget
-})
+### 3. `execute_tool` - Run any provisioned tool
+```json
+{
+    "tool_id": "puppeteer_screenshot",
+    "arguments": {
+        "name": "homepage",
+        "selector": "body"
+    }
+}
 ```
 
 ## Real-World Examples
@@ -74,11 +85,13 @@ response = provision_tools({
    - Start with core tools
    - Discover additional tools as the task evolves
 
-## API Endpoints
+## HTTP API Endpoints (Alternative Usage)
+
+If using Tool Gating as an HTTP API instead of MCP:
 
 ### Tool Discovery
 ```
-POST /api/v1/tools/discover
+POST /api/tools/discover
 {
     "query": "natural language description of what you need",
     "tags": ["optional", "filtering", "tags"],
@@ -88,7 +101,7 @@ POST /api/v1/tools/discover
 
 ### Tool Provisioning
 ```
-POST /api/v1/tools/provision
+POST /api/tools/provision
 {
     "tool_ids": ["tool1", "tool2", "tool3"],
     "context_tokens": 500
@@ -97,8 +110,17 @@ POST /api/v1/tools/provision
 
 ### MCP Server Management
 ```
-GET /api/v1/mcp/servers          # List all servers
-POST /api/v1/mcp/servers/register # Register new server
+GET /api/mcp/servers          # List all servers
+POST /api/mcp/servers/register # Register new server
+```
+
+### Proxy Execution (Coming Soon)
+```
+POST /api/proxy/execute
+{
+    "tool_id": "server_toolname",
+    "arguments": {...}
+}
 ```
 
 ## Semantic Search Tips
@@ -118,12 +140,33 @@ The system automatically:
 - Excludes redundant or low-relevance tools
 - Maintains diversity across different servers
 
-## Integration with Claude
+## Setup for Claude Desktop
 
-When using this system:
-1. You don't need to manually manage which MCP servers to connect to
-2. The system handles tool discovery across all registered servers
-3. You get exactly the tools you need for the current task
-4. Your context window stays clean and focused
+1. **Start Tool Gating**:
+   ```bash
+   tool-gating-mcp
+   ```
+
+2. **Configure Claude Desktop** (only once):
+   ```json
+   {
+     "mcpServers": {
+       "tool-gating": {
+         "command": "/path/to/mcp-proxy",
+         "args": ["http://localhost:8000/mcp"]
+       }
+     }
+   }
+   ```
+
+3. **Use Natural Language**:
+   - "I need to search for research papers" → Finds academic search tools
+   - "Help me automate browser tasks" → Discovers Puppeteer tools
+   - "I want to work with documentation" → Locates Context7 tools
+
+4. **Execute Seamlessly**:
+   - All tool execution routes through Tool Gating automatically
+   - No need to know which backend server has which tool
+   - Context stays clean with only provisioned tools
 
 This allows you to work with virtually unlimited MCP tools while maintaining peak efficiency!
