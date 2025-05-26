@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # API Keys
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-3-opus-20240229"
+    anthropic_model: str = "claude-4-sonnet-latest"
 
     # File paths
     mcp_servers_path: str = "mcp-servers.json"
