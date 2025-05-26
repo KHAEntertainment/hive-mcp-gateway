@@ -51,3 +51,27 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+# MCP Server Configurations
+# Start with simple servers that don't require authentication
+MCP_SERVERS = {
+    "puppeteer": {
+        "command": "mcp-server-puppeteer",
+        "args": [],
+        "description": "Browser automation and web scraping",
+        "env": {}
+    },
+    "filesystem": {
+        "command": "mcp-server-filesystem",
+        "args": ["--root", "/tmp/mcp-workspace"],
+        "description": "File system operations",
+        "env": {}
+    },
+    # Additional servers can be added here
+    # "context7": {
+    #     "command": "npx",
+    #     "args": ["-y", "@upstash/context7-mcp@latest"],
+    #     "description": "Documentation search",
+    #     "env": {}
+    # },
+}
