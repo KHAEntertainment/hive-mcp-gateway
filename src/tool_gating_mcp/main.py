@@ -50,7 +50,5 @@ mcp_server = FastApiMCP(
 )
 
 # Mount the MCP server to make it available at /mcp endpoint
+# This automatically calls setup_server() internally
 mcp_server.mount()
-
-# Ensure all tools are properly registered after mounting
-mcp_server.setup_server()
