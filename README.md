@@ -224,15 +224,12 @@ Select and format tools for LLM consumption with token budget enforcement.
    Claude → discover_tools → Semantic Search → Returns relevant tools
    ```
 
-4. **Smart Provisioning**: Load only what you need
+4. **Real-time Tool Execution**: Tools are loaded on-demand
    ```
-   provision_tools(["exa_research_paper_search"]) → 250 tokens (vs 8000 for all)
+   execute_tool("exa_research_paper_search", {...}) → Validates → Loads → Executes
    ```
-
-5. **Transparent Execution**: Use tools as if directly connected
-   ```
-   execute_tool("exa_research_paper_search", {...}) → Routes to Exa server
-   ```
+   
+   No provisioning needed! Tools are dynamically loaded when you use them.
 
 ## 🎯 Usage Examples
 
@@ -293,14 +290,14 @@ pytest tests/test_discovery_service.py -v
 pytest tests/test_integration.py -v
 ```
 
-## 📊 How It Works
+## 📊 Architecture Details
 
 1. **Tool Registration**: Tools are registered with metadata, tags, and token estimates
 2. **Semantic Search**: User queries are embedded using sentence transformers
 3. **Relevance Scoring**: Tools are scored based on:
    - Cosine similarity between query and tool embeddings
    - Tag matches (adds 0.2 boost per matching tag)
-4. **Token Gating**: Tools are selected to fit within token budget constraints
+4. **Real-time Loading**: Tools are validated and loaded on-demand during execution
 5. **MCP Formatting**: Selected tools are formatted according to MCP protocol
 
 ## 🔧 Configuration

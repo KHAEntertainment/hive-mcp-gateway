@@ -108,11 +108,7 @@ class TestProxyIntegration:
             assert "puppeteer_navigate" in tool_ids
             assert "filesystem_read_file" in tool_ids
             
-            # Provision specific tools
-            proxy_service.provision_tool("puppeteer_screenshot")
-            proxy_service.provision_tool("filesystem_read_file")
-            
-            # Execute a tool
+            # Execute a tool (no provisioning needed)
             mock_result = {"success": True, "screenshot": "base64_data"}
             client_manager._active_sessions["puppeteer"]["session"].call_tool.return_value = mock_result
             
@@ -122,6 +118,15 @@ class TestProxyIntegration:
             )
             
             assert result == mock_result
+            
+            # Test getting execution info
+            info = await proxy_service.get_tool_execution_info(
+                "puppeteer_screenshot",
+                {"name": "test_shot"}
+            )
+            assert info["tool_name"] == "screenshot"
+            assert info["server"] == "puppeteer"
+            assert info["action_summary"] == "Will capture screenshot 'test_shot'"
 
     @pytest.mark.asyncio
     async def test_cross_server_tool_execution(self):
@@ -139,11 +144,27 @@ class TestProxyIntegration:
         for server_name, session in mock_sessions.items():
             client_manager._active_sessions[server_name] = {"session": session}
         
-        # Provision tools from different servers
-        proxy_service.provision_tool("exa_web_search")
-        proxy_service.provision_tool("context7_doc_search")
+        # Add tools to repository (needed for real-time validation)
+        await tool_repository.add_tool(Tool(
+            id="exa_web_search",
+            name="web_search",
+            description="Search the web",
+            parameters={},
+            server="exa",
+            tags=["search"],
+            estimated_tokens=100
+        ))
+        await tool_repository.add_tool(Tool(
+            id="context7_doc_search",
+            name="doc_search",
+            description="Search documentation",
+            parameters={},
+            server="context7",
+            tags=["search", "docs"],
+            estimated_tokens=100
+        ))
         
-        # Execute tool from first server
+        # Execute tool from first server (no provisioning needed)
         exa_result = {"results": ["result1", "result2"]}
         mock_sessions["exa"].call_tool.return_value = exa_result
         
