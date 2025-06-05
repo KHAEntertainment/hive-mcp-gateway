@@ -126,6 +126,12 @@ async def provision_tools(
         )
         for i, tool in enumerate(mcp_tools)
     ]
+    
+    # Update proxy service with provisioned tools
+    from ..main import app
+    if hasattr(app.state, "proxy_service"):
+        for tool in selected_tools:
+            app.state.proxy_service.provision_tool(tool.id)
 
     return ToolProvisionResponse(
         tools=tool_defs,
