@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # API Keys
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-3-opus-20240229"
+    anthropic_model: str = "claude-4-sonnet-latest"
 
     # File paths
     mcp_servers_path: str = "mcp-servers.json"
@@ -51,3 +51,27 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+# MCP Server Configurations
+# Start with simple servers that don't require authentication
+MCP_SERVERS = {
+    "context7": {
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp@latest"],
+        "description": "Documentation search and library information",
+        "env": {}
+    },
+    # For testing, let's keep these but not connect initially
+    # "puppeteer": {
+    #     "command": "mcp-server-puppeteer",
+    #     "args": [],
+    #     "description": "Browser automation and web scraping",
+    #     "env": {}
+    # },
+    # "filesystem": {
+    #     "command": "mcp-server-filesystem",
+    #     "args": ["--root", "/tmp/mcp-workspace"],
+    #     "description": "File system operations",
+    #     "env": {}
+    # },
+}

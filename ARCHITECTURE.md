@@ -2,87 +2,139 @@
 
 ## Overview
 
-The Tool Gating MCP system is designed to intelligently limit the number of tools exposed to LLMs, reducing token usage while maintaining functionality through semantic search and context-aware tool selection.
+Tool Gating MCP is an intelligent proxy/router that manages MCP tools to prevent context bloat. It acts as a single MCP server that Claude Desktop connects to, while internally managing connections to multiple backend MCP servers. The system discovers, ranks, and provisions only the most relevant tools for each task.
 
 ## Core Responsibilities
 
 ### What This System Does ✅
 
-1. **Tool Discovery**: Find relevant tools based on natural language queries
-2. **Semantic Search**: Use embeddings to match tools to user intent
-3. **Token Budget Enforcement**: Select tools within token constraints
-4. **Tool Formatting**: Provide tools in MCP-compatible format
+1. **Tool Discovery**: Find relevant tools across multiple MCP servers using semantic search
+2. **Intelligent Selection**: Choose optimal tools within token budgets
+3. **Proxy Execution**: Route tool calls to appropriate backend MCP servers
+4. **Connection Management**: Maintain persistent connections to multiple MCP servers
+5. **Native MCP Server**: Expose all functionality as MCP tools for Claude Desktop
 
 ### What This System Does NOT Do ❌
 
-1. **Tool Execution**: LLMs execute tools directly with MCP servers
-2. **Result Processing**: No proxy or middleware for tool results
-3. **Authentication**: Does not handle MCP server authentication
+1. **Direct Tool Implementation**: Delegates actual tool execution to backend servers
+2. **Authentication Storage**: Currently supports only no-auth servers (Phase 1)
+3. **Result Transformation**: Passes through results unmodified
 
 ## Architecture Diagram
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│     LLM     │────▶│ Tool Gating MCP  │────▶│  Tool Defs  │
-└─────────────┘     └──────────────────┘     └─────────────┘
-      │                                              │
-      │                                              │
-      └──────────────────────────────────────────────┘
-                           │
-                           ▼
-                   ┌───────────────┐
-                   │  MCP Servers  │
-                   └───────────────┘
+┌─────────────────┐
+│ Claude Desktop  │
+│   (or other     │
+│  MCP clients)   │
+└────────┬────────┘
+         │ MCP Protocol (SSE/stdio)
+         │
+┌────────▼────────────────────────┐
+│      Tool Gating MCP Proxy      │
+├─────────────────────────────────┤
+│ • discover_tools                │
+│ • provision_tools               │
+│ • execute_tool ← Key Addition   │
+│ • register_mcp_server           │
+└────────┬───────┬────────┬──────┘
+         │       │        │ stdio connections
+    ┌────▼──┐ ┌──▼──┐ ┌──▼──┐
+    │Puppet-│ │Con- │ │ Exa │
+    │ eer   │ │text7│ │     │
+    └───────┘ └─────┘ └─────┘
+    Backend MCP Servers
 ```
 
 ## Key Components
 
-### 1. Discovery Service
+### 1. MCP Client Manager (NEW)
+- **Purpose**: Manage connections to backend MCP servers
+- **Technology**: MCP Python SDK with stdio transport
+- **Features**:
+  - Persistent server connections
+  - Tool discovery on connect
+  - Connection lifecycle management
+  - Error recovery
+
+### 2. Proxy Service (NEW)
+- **Purpose**: Route tool execution to backend servers
+- **Features**:
+  - Tool ID parsing (server_toolname format)
+  - Provisioning state management
+  - Request routing
+  - Error propagation
+
+### 3. Discovery Service
 - **Purpose**: Find relevant tools using semantic search
 - **Technology**: Sentence transformers (all-MiniLM-L6-v2)
 - **Features**:
   - Cosine similarity scoring
   - Tag-based filtering
-  - Context-aware search
+  - Cross-server search
 
-### 2. Gating Service
+### 4. Gating Service
 - **Purpose**: Select tools within constraints
 - **Features**:
   - Token budget enforcement (default 2000)
   - Tool count limits (default 10)
   - Priority-based selection
 
-### 3. Tool Repository
-- **Purpose**: Store and manage tool definitions
-- **Implementation**: In-memory (demo) or database
+### 5. Tool Repository
+- **Purpose**: Store tool definitions from all servers
+- **Implementation**: In-memory storage
 - **Features**:
-  - CRUD operations
+  - Unified tool registry
+  - Server attribution
   - Usage tracking
-  - Popular tools ranking
 
 ## API Flow
 
-### 1. Discovery Flow
+### 1. Startup Flow (NEW)
 ```
-POST /api/v1/tools/discover
+Application Start
+↓
+Connect to Backend MCP Servers (puppeteer, context7, etc.)
+↓
+Discover All Available Tools
+↓
+Index in Tool Repository with server attribution
+↓
+Ready for Client Connections
+```
+
+### 2. Discovery Flow
+```
+MCP Tool: discover_tools
 {
-  "query": "I need to calculate things",
-  "tags": ["math"],
+  "query": "I need to take screenshots",
+  "tags": ["browser"],
   "limit": 5
 }
 ↓
-Semantic Search → Score Tools → Return Matches
+Semantic Search Across All Servers → Score Tools → Return Matches
 ```
 
-### 2. Provisioning Flow
+### 3. Provisioning Flow
 ```
-POST /api/v1/tools/provision
+MCP Tool: provision_tools
 {
-  "tool_ids": ["calc", "converter"],
+  "tool_ids": ["puppeteer_screenshot", "puppeteer_navigate"],
   "max_tools": 3
 }
 ↓
-Apply Gating → Format for MCP → Return Tools
+Apply Gating → Update Provisioned Set → Return Tool Definitions
+```
+
+### 4. Execution Flow (NEW)
+```
+MCP Tool: execute_tool
+{
+  "tool_id": "puppeteer_screenshot",
+  "arguments": {"name": "homepage"}
+}
+↓
+Parse Server Name → Route to Backend → Execute → Return Result
 ```
 
 ## Token Optimization
@@ -99,29 +151,46 @@ Apply Gating → Format for MCP → Return Tools
 
 ## Integration Guide
 
-### For LLM Developers
+### For Claude Desktop Users
 
-1. **Discover Tools**
-   ```python
-   # Find tools based on user intent
-   tools = await discover_tools(query="user needs...")
+1. **Configure Tool Gating Only**
+   ```json
+   {
+     "mcpServers": {
+       "tool-gating": {
+         "command": "mcp-proxy",
+         "args": ["http://localhost:8000/mcp"]
+       }
+     }
+   }
    ```
 
-2. **Provision Tools**
+2. **Use Natural Language**
+   - "I need to search the web" → discovers web search tools
+   - "Help me take screenshots" → finds browser automation tools
+   - "I want to analyze code" → locates code analysis tools
+
+3. **Execute Through Proxy**
+   - All tool execution automatically routes through Tool Gating
+   - No need to know which backend server has which tool
+
+### For Developers Adding New MCP Servers
+
+1. **Register Your Server**
    ```python
-   # Get MCP-formatted tools
-   mcp_tools = await provision_tools(tool_ids=[...])
+   POST /api/mcp/servers
+   {
+     "name": "my-server",
+     "config": {
+       "command": "my-mcp-server",
+       "args": []
+     }
+   }
    ```
 
-3. **Execute Directly**
-   ```python
-   # LLM executes with MCP server directly
-   result = await mcp_server.execute(tool_name, params)
-   ```
-
-### For MCP Server Developers
-
-No changes needed! The gating system is transparent to MCP servers.
+2. **Tools Auto-Discovered**
+   - Tool Gating connects and indexes all tools
+   - Tools available immediately for discovery
 
 ## Configuration
 

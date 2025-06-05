@@ -1,43 +1,43 @@
 # Tool Gating MCP
 
-An intelligent tool gating system for Model Context Protocol (MCP) that dynamically limits which tools from multiple MCP servers are exposed to LLMs. This system solves the context bloat problem by selectively provisioning only the most relevant tools instead of overwhelming LLMs with all available tools from all connected servers.
+An intelligent proxy/router for Model Context Protocol (MCP) that enables Claude Desktop and other MCP clients to dynamically discover and use tools from multiple MCP servers while maintaining a single connection point. This system prevents context bloat by intelligently selecting only the most relevant tools for each task.
 
 ## 🎯 The Problem
 
-When integrating multiple MCP servers, each exposing numerous tools:
+MCP clients like Claude Desktop must load all servers at startup and cannot dynamically add servers during conversations. When using multiple MCP servers:
 - **Exa server**: 7 search tools (web, research papers, Twitter, companies, etc.)
-- **Desktop Commander**: 18+ automation tools
-- **Context7**: Multiple documentation tools
-- **Basic Memory**: Storage and retrieval tools
+- **Puppeteer**: Browser automation tools
+- **Context7**: Documentation search tools
+- **Desktop Commander**: 18+ desktop automation tools
 
-Without gating, an LLM would receive **all 40+ tools** in its context, leading to:
-- 🚨 **Context bloat**: Reduced quality as LLMs struggle with too many options
+Loading all servers directly leads to:
+- 🚨 **Context bloat**: 100+ tools consuming most of the context window
+- 🔒 **Static configuration**: Cannot add servers without restarting Claude
 - 💸 **Increased costs**: More tokens consumed per request
-- 🐌 **Slower responses**: Processing overhead from irrelevant tools
-- 🎯 **Poor tool selection**: LLMs may choose suboptimal tools
+- 🎯 **Poor tool selection**: AI struggles to choose from too many options
 
 ## 💡 The Solution
 
-Tool Gating MCP acts as an intelligent middleware that:
-1. **Discovers** all available tools from connected MCP servers
-2. **Understands** what the LLM needs through semantic search
-3. **Selects** only the most relevant tools within token budgets
-4. **Provisions** a focused subset (e.g., 1 Exa search + 1 file editor)
+Tool Gating MCP acts as an intelligent proxy that:
+1. **Single Connection**: Claude Desktop connects only to Tool Gating
+2. **Backend Management**: Maintains connections to multiple MCP servers
+3. **Smart Discovery**: Finds relevant tools across all servers using semantic search
+4. **Dynamic Provisioning**: Loads only needed tools within token budgets
+5. **Transparent Routing**: Executes tools on appropriate backend servers
 
-**Example**: Instead of 40+ tools consuming 8,000 tokens, provision just 2-3 relevant tools using only 500 tokens.
+**Example**: Instead of configuring 10 MCP servers with 100+ tools, configure just Tool Gating. Then dynamically discover and use only the 2-3 tools you need.
 
 ## 🚀 Features
 
-- **Cross-Server Tool Discovery**: Aggregates tools from multiple MCP servers into a unified registry
-- **Semantic Search**: Uses sentence transformers to understand tool purpose and match queries
-- **Selective Provisioning**: Returns only relevant tools from specific servers (e.g., 1 from Exa, 1 from Desktop Commander)
-- **Token Budget Enforcement**: Ensures selected tools fit within LLM context limits
-- **Smart Scoring**: Combines semantic similarity with tag matching for accurate tool selection
-- **MCP Protocol Compatible**: Outputs tools in standard MCP format for direct LLM consumption
-- **Native MCP Server**: Works directly with Claude Desktop and other MCP clients
-- **Dual Transport Support**: HTTP/SSE for web clients, stdio for Claude Desktop (via mcp-proxy)
-- **RESTful API**: Easy integration with any LLM orchestration system
-- **Simplified API**: Clean endpoint structure at `/api/tools/*` and `/api/mcp/*`
+- **Proxy Architecture**: Single MCP server that routes to multiple backend servers
+- **Dynamic Tool Discovery**: Find tools across all servers without manual configuration
+- **Semantic Search**: Natural language queries to find the right tools
+- **Smart Provisioning**: Load only relevant tools within token budgets
+- **Transparent Execution**: Route tool calls to appropriate backend servers
+- **Native MCP Server**: Direct integration with Claude Desktop via mcp-proxy
+- **Cross-Server Intelligence**: Unified view of tools from Puppeteer, Exa, Context7, etc.
+- **Token Optimization**: 90%+ reduction in context usage vs. loading all servers
+- **Zero Configuration**: Claude Desktop needs only Tool Gating configuration
 
 ## 📋 Prerequisites
 
@@ -197,42 +197,41 @@ Select and format tools for LLM consumption with token budget enforcement.
 ```
 
 
-## 🔄 Typical Workflow
+## 🔄 How It Works
 
-1. **MCP Servers Running**: Multiple MCP servers expose their tools
-   ```
-   exa-server → 7 search tools
-   desktop-commander → 18 automation tools
-   context7 → 5 documentation tools
-   ```
-
-2. **Tool Registration**: Tool Gating MCP discovers and indexes all tools
-   ```python
-   # System discovers 30+ total tools across servers
-   ```
-
-3. **LLM Query**: "I need to search for research papers and save results to a file"
-
-4. **Semantic Discovery**: System finds relevant tools
+1. **Claude Desktop Configuration**: Configure only Tool Gating MCP
    ```json
    {
-     "exa_research_paper_search": 0.92,  // High relevance
-     "desktop_file_write": 0.88,          // High relevance
-     "exa_web_search": 0.65,              // Medium relevance
-     "desktop_screenshot": 0.12,          // Low relevance
-     ...
+     "mcpServers": {
+       "tool-gating": {
+         "command": "mcp-proxy",
+         "args": ["http://localhost:8000/mcp"]
+       }
+     }
    }
    ```
 
-5. **Selective Provisioning**: Only top tools within budget
-   ```json
-   {
-     "tools": [
-       {"name": "research_paper_search", "server": "exa", "tokens": 250},
-       {"name": "file_write", "server": "desktop-commander", "tokens": 150}
-     ],
-     "total_tokens": 400  // Well within budget!
-   }
+2. **Backend Server Connection**: Tool Gating connects to multiple MCP servers
+   ```
+   Tool Gating → puppeteer (browser tools)
+              → exa (search tools)
+              → context7 (documentation)
+              → filesystem (file operations)
+   ```
+
+3. **Natural Language Discovery**: "I need to search for research papers"
+   ```
+   Claude → discover_tools → Semantic Search → Returns relevant tools
+   ```
+
+4. **Smart Provisioning**: Load only what you need
+   ```
+   provision_tools(["exa_research_paper_search"]) → 250 tokens (vs 8000 for all)
+   ```
+
+5. **Transparent Execution**: Use tools as if directly connected
+   ```
+   execute_tool("exa_research_paper_search", {...}) → Routes to Exa server
    ```
 
 ## 🎯 Usage Examples

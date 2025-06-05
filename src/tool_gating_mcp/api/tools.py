@@ -31,9 +31,18 @@ async def get_tool_repository() -> Any:
     global _tool_repository
     if _tool_repository is None:
         from ..services.repository import InMemoryToolRepository
+        from ..services.mcp_registry import MCPServerRegistry
 
         _tool_repository = InMemoryToolRepository()
-        await _tool_repository.populate_demo_tools()
+        
+        # Load tools from registered MCP servers instead of demo tools
+        # This allows the system to start empty and tools to be added dynamically
+        # via the MCP server registration endpoints
+        
+        # Optional: Pre-load some default servers
+        # registry = MCPServerRegistry()
+        # await registry.load_default_servers()
+        
     return _tool_repository
 
 
@@ -117,6 +126,12 @@ async def provision_tools(
         )
         for i, tool in enumerate(mcp_tools)
     ]
+    
+    # Update proxy service with provisioned tools
+    from ..main import app
+    if hasattr(app.state, "proxy_service"):
+        for tool in selected_tools:
+            app.state.proxy_service.provision_tool(tool.id)
 
     return ToolProvisionResponse(
         tools=tool_defs,
