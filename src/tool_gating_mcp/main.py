@@ -35,14 +35,15 @@ async def lifespan(app: FastAPI):
         # Initialize client manager
         client_manager = MCPClientManager()
         
-        # Connect to configured servers
+        # Connect to all configured servers
+        logger.info("Connecting to MCP servers...")
         for server_name, config in MCP_SERVERS.items():
             try:
-                logger.info(f"Connecting to MCP server: {server_name}")
+                logger.info(f"Connecting to {server_name}: {config.get('description', 'No description')}")
                 await client_manager.connect_server(server_name, config)
-                logger.info(f"Successfully connected to {server_name}")
+                logger.info(f"✓ Successfully connected to {server_name}")
             except Exception as e:
-                logger.error(f"Failed to connect to {server_name}: {e}")
+                logger.error(f"✗ Failed to connect to {server_name}: {e}")
         
         # Get tool repository from existing dependency
         from .api.tools import get_tool_repository
@@ -112,7 +113,8 @@ mcp_server = FastApiMCP(
 # Add execute_tool endpoint that will be exposed as MCP tool
 @app.post("/execute_tool", 
     summary="Execute a provisioned tool",
-    description="Execute a tool on the appropriate backend MCP server")
+    description="Execute a tool on the appropriate backend MCP server",
+    operation_id="exec_tool")
 async def execute_tool(tool_id: str, arguments: dict) -> Any:
     """Execute a provisioned tool on the appropriate MCP server.
     

@@ -35,7 +35,7 @@ async def get_discovery_service() -> MCPDiscoveryService:
     return MCPDiscoveryService(tool_repo=repo)
 
 
-@router.post("/servers/register")
+@router.post("/servers/register", operation_id="register_server")
 async def register_mcp_server(
     registration: MCPServerRegistration,
     registry: MCPServerRegistry = Depends(get_mcp_registry),  # noqa: B008
@@ -49,7 +49,7 @@ async def register_mcp_server(
     return await registry.register_server(registration)
 
 
-@router.get("/servers", response_model=list[str])
+@router.get("/servers", response_model=list[str], operation_id="list_servers")
 async def list_mcp_servers(
     registry: MCPServerRegistry = Depends(get_mcp_registry),  # noqa: B008
 ) -> list[str]:
@@ -57,7 +57,7 @@ async def list_mcp_servers(
     return await registry.list_servers()
 
 
-@router.get("/servers/{server_name}")
+@router.get("/servers/{server_name}", operation_id="get_server")
 async def get_mcp_server(
     server_name: str,
     registry: MCPServerRegistry = Depends(get_mcp_registry)  # noqa: B008
@@ -70,7 +70,7 @@ async def get_mcp_server(
     return {"name": server_name, "config": config.model_dump()}
 
 
-@router.delete("/servers/{server_name}")
+@router.delete("/servers/{server_name}", operation_id="remove_server")
 async def remove_mcp_server(
     server_name: str,
     registry: MCPServerRegistry = Depends(get_mcp_registry)  # noqa: B008
@@ -79,7 +79,7 @@ async def remove_mcp_server(
     return await registry.remove_server(server_name)
 
 
-@router.post("/discover")
+@router.post("/discover", operation_id="discover_mcp_tools")
 async def discover_mcp_tools(
     request: MCPToolDiscoveryRequest,
     discovery: MCPDiscoveryService = Depends(get_discovery_service),  # noqa: B008
@@ -165,7 +165,7 @@ async def discover_mcp_tools(
     }
 
 
-@router.post("/analyze")
+@router.post("/analyze", operation_id="analyze_config")
 async def analyze_mcp_config(
     config: dict[str, Any],
     discovery: MCPDiscoveryService = Depends(get_discovery_service),  # noqa: B008
@@ -181,7 +181,7 @@ async def analyze_mcp_config(
     return {"analysis": analysis, "recommendation": _generate_recommendation(analysis)}
 
 
-@router.post("/ai/register-server")
+@router.post("/ai/register-server", operation_id="ai_register_server")
 async def ai_register_mcp_server(
     server_name: str,
     config: MCPServerConfig,
@@ -248,7 +248,7 @@ async def ai_register_mcp_server(
     }
 
 
-@router.post("/anthropic/provision")
+@router.post("/anthropic/provision", operation_id="anthropic_provision")
 async def provision_via_anthropic_api(config: AnthropicMCPConfig) -> dict[str, Any]:
     """
     Provision MCP servers directly via Anthropic API.

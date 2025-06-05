@@ -65,7 +65,7 @@ def get_current_user() -> dict[str, str]:
     return {"user_id": "test-user"}
 
 
-@router.post("/discover", response_model=ToolDiscoveryResponse)
+@router.post("/discover", response_model=ToolDiscoveryResponse, operation_id="discover_tools")
 async def discover_tools(
     request: ToolDiscoveryRequest,
     discovery_service: DiscoveryService = Depends(get_discovery_service),  # noqa: B008
@@ -96,7 +96,7 @@ async def discover_tools(
     )
 
 
-@router.post("/provision", response_model=ToolProvisionResponse)
+@router.post("/provision", response_model=ToolProvisionResponse, operation_id="provision_tools")
 async def provision_tools(
     request: ToolProvisionRequest,
     gating_service: GatingService = Depends(get_gating_service),  # noqa: B008
@@ -142,7 +142,7 @@ async def provision_tools(
     )
 
 
-@router.post("/register")
+@router.post("/register", operation_id="register_tool")
 async def register_tool(
     tool: Tool,
     tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
@@ -152,7 +152,7 @@ async def register_tool(
     return {"status": "success", "tool_id": tool.id}
 
 
-@router.delete("/clear")
+@router.delete("/clear", operation_id="clear_tools")
 async def clear_tools(
     tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
 ) -> dict[str, str]:

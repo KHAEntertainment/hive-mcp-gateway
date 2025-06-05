@@ -36,7 +36,7 @@ async def get_proxy_service() -> ProxyService:
     return app.state.proxy_service
 
 
-@router.post("/execute", response_model=ExecuteToolResponse)
+@router.post("/execute", response_model=ExecuteToolResponse, operation_id="execute_tool")
 async def execute_tool(
     request: ExecuteToolRequest,
     proxy_service: ProxyService = Depends(get_proxy_service)
