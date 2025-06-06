@@ -20,8 +20,11 @@ from tool_gating_mcp.services.proxy_service import ProxyService
 
 
 @pytest.fixture
-def client():
-    """FastAPI test client"""
+def client(proxy_service):
+    """FastAPI test client with initialized proxy service"""
+    # Initialize app state for tests
+    app.state.proxy_service = proxy_service
+    app.state.client_manager = proxy_service.client_manager
     return TestClient(app)
 
 
@@ -202,8 +205,15 @@ def error_scenarios():
 @pytest.fixture(autouse=True)
 async def cleanup_after_test():
     """Cleanup fixture that runs after each test"""
-    yield
-    # Clear any global state that might affect other tests
+    # Clear repository before test
     from tool_gating_mcp.api.tools import _tool_repository
     if _tool_repository:
         _tool_repository._tools.clear()
+        _tool_repository._usage_counts.clear()
+    
+    yield
+    
+    # Clear repository after test as well
+    if _tool_repository:
+        _tool_repository._tools.clear()
+        _tool_repository._usage_counts.clear()

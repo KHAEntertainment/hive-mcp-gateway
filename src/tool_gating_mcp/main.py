@@ -45,9 +45,9 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.error(f"✗ Failed to connect to {server_name}: {e}")
         
-        # Get tool repository from existing dependency
-        from .api.tools import get_tool_repository
-        tool_repository = await get_tool_repository()
+        # Get tool repository without circular import
+        from .services.repository import InMemoryToolRepository
+        tool_repository = InMemoryToolRepository()
         
         # Initialize proxy service
         proxy_service = ProxyService(client_manager, tool_repository)

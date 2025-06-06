@@ -26,14 +26,15 @@ class ProxyService:
                 # Convert MCP tool to our Tool model
                 tool_obj = Tool(
                     id=f"{server_name}_{tool.name}",
-                    name=tool.name,
-                    description=tool.description or "",
-                    parameters=tool.inputSchema or {},
+                    name=getattr(tool, 'name', 'unknown'),
+                    description=getattr(tool, 'description', '') or "",
+                    parameters=getattr(tool, 'inputSchema', getattr(tool, 'parameters', {})) or {},
                     server=server_name,
-                    tags=self._extract_tags(tool.description),
+                    tags=self._extract_tags(getattr(tool, 'description', '')),
                     estimated_tokens=self._estimate_tokens(tool)
                 )
-                await self.tool_repository.add_tool(tool_obj)
+                # Use sync version of add_tool
+                self.tool_repository.add_tool_sync(tool_obj)
     
     def provision_tool(self, tool_id: str) -> None:
         """Mark a tool as provisioned for use
@@ -72,7 +73,7 @@ class ProxyService:
         Returns:
             Dictionary with execution details
         """
-        tool = await self.tool_repository.get_tool(tool_id)
+        tool = self.tool_repository.get_tool(tool_id)
         if not tool:
             raise ValueError(f"Tool {tool_id} not found")
         
@@ -136,7 +137,7 @@ class ProxyService:
         server_name, tool_name = tool_id.split('_', 1)
         
         # Verify tool exists in repository (for validation)
-        tool = await self.tool_repository.get_tool(tool_id)
+        tool = self.tool_repository.get_tool(tool_id)
         if not tool:
             raise ValueError(f"Tool {tool_id} not found in repository")
         
@@ -188,6 +189,6 @@ class ProxyService:
             Estimated token count
         """
         # Simple estimation based on description and schema size
-        desc_tokens = len(str(tool.description or "").split()) * 1.3
-        schema_tokens = len(str(tool.inputSchema or {}).split()) * 1.3
+        desc_tokens = len(str(getattr(tool, 'description', '') or "").split()) * 1.3
+        schema_tokens = len(str(getattr(tool, 'inputSchema', {}) or {}).split()) * 1.3
         return int(desc_tokens + schema_tokens + 50)  # Base overhead

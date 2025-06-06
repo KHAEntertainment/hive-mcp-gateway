@@ -14,8 +14,7 @@ class MCPServerConfig(BaseModel):
         default_factory=dict, description="Environment variables"
     )
 
-    class Config:
-        extra = "allow"  # Allow additional fields for future compatibility
+    model_config = {"extra": "allow"}  # Allow additional fields for future compatibility
 
 
 class MCPServerRegistration(BaseModel):
@@ -57,8 +56,8 @@ class AnthropicMCPConfig(BaseModel):
         default_factory=list, description="MCP servers to connect via API"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "api_key": "sk-ant-...",
                 "mcp_servers": [
@@ -71,6 +70,7 @@ class AnthropicMCPConfig(BaseModel):
                 ],
             }
         }
+    }
 
 
 class MCPToolSchema(BaseModel):

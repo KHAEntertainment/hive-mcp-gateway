@@ -76,16 +76,16 @@ async def add_server(
                 try:
                     from ..models.tool import Tool
                     tool_model = Tool(
-                        id=f"{request.name}_{tool.name}",
-                        name=tool.name,
-                        description=tool.description,
-                        parameters=getattr(tool, 'inputSchema', {}),
+                        id=f"{request.name}_{getattr(tool, 'name', 'unknown')}",
+                        name=getattr(tool, 'name', 'unknown'),
+                        description=getattr(tool, 'description', 'No description available'),
+                        parameters=getattr(tool, 'inputSchema', getattr(tool, 'parameters', {})),
                         server=request.name,
                         tags=[],
                         estimated_tokens=100
                     )
                     await discovery.tool_repo.add_tool(tool_model)
-                    registered_tools.append(tool.name)
+                    registered_tools.append(getattr(tool, 'name', 'unknown'))
                 except Exception:
                     # Continue with other tools if one fails
                     pass

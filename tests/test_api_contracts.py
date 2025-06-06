@@ -97,16 +97,15 @@ class TestResponseFormats:
     async def test_server_addition_response_format(self, client):
         """Test add_server response format"""
         
-        with pytest.warns(None) as warning_list:
-            response = client.post("/api/mcp/add_server", json={
-                "name": "test_server",
-                "config": {
-                    "command": "test-command",
-                    "args": [],
-                    "env": {}
-                },
-                "description": "Test server"
-            })
+        response = client.post("/api/mcp/add_server", json={
+            "name": "test_server",
+            "config": {
+                "command": "test-command",
+                "args": [],
+                "env": {}
+            },
+            "description": "Test server"
+        })
         
         # Should return consistent format regardless of success/failure
         assert response.status_code in [200, 500]  # May fail due to missing server
