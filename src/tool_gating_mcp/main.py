@@ -110,32 +110,8 @@ mcp_server = FastApiMCP(
 )
 
 
-# Add execute_tool endpoint that will be exposed as MCP tool
-@app.post("/execute_tool", 
-    summary="Execute a tool via real-time loading",
-    description="Execute any discovered tool without provisioning",
-    operation_id="exec_tool")
-async def execute_tool(tool_id: str, arguments: dict) -> Any:
-    """Execute a tool on the appropriate MCP server with real-time loading.
-    
-    This endpoint loads and executes tools on-demand without requiring
-    provisioning. Tools are validated against the repository and executed
-    directly on their respective MCP servers.
-    
-    Args:
-        tool_id: The tool identifier (format: "servername_toolname")
-        arguments: Tool-specific arguments as required by the tool
-        
-    Returns:
-        The result from the tool execution
-        
-    Raises:
-        ValueError: If tool is not found or server is not connected
-    """
-    if not hasattr(app.state, "proxy_service"):
-        raise ValueError("Proxy service not initialized")
-    
-    return await app.state.proxy_service.execute_tool(tool_id, arguments)
+# Note: Tool execution is handled by /api/proxy/execute endpoint
+# This avoids duplication and keeps the API organized
 
 
 # Mount the MCP server to make it available at /mcp endpoint

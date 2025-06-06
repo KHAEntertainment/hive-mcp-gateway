@@ -1,5 +1,5 @@
-# Tool API endpoints
-# Implements discovery, provisioning, and execution endpoints
+# Essential Tool API - Core functionality for AI agents
+# Includes discovery, registration, and management
 
 import uuid
 from datetime import datetime
@@ -8,16 +8,12 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from ..api.models import (
-    MCPToolDefinition,
     ToolDiscoveryRequest,
     ToolDiscoveryResponse,
     ToolMatchResponse,
-    ToolProvisionRequest,
-    ToolProvisionResponse,
 )
 from ..models.tool import Tool
 from ..services.discovery import DiscoveryService
-from ..services.gating import GatingService
 
 router = APIRouter(prefix="/api/tools", tags=["tools"])
 
@@ -53,16 +49,6 @@ async def get_discovery_service() -> DiscoveryService:
     return DiscoveryService(tool_repo=repo)
 
 
-async def get_gating_service() -> GatingService:
-    """Get gating service instance."""
-    repo = await get_tool_repository()
-    return GatingService(tool_repo=repo)
-
-
-def get_current_user() -> dict[str, str]:
-    """Get current user context."""
-    # Placeholder for authentication
-    return {"user_id": "test-user"}
 
 
 @router.post("/discover", response_model=ToolDiscoveryResponse, operation_id="discover_tools")
@@ -96,58 +82,16 @@ async def discover_tools(
     )
 
 
-@router.post("/provision", response_model=ToolProvisionResponse, operation_id="provision_tools")
-async def provision_tools(
-    request: ToolProvisionRequest,
-    gating_service: GatingService = Depends(get_gating_service),  # noqa: B008
-    user: dict[str, str] = Depends(get_current_user),  # noqa: B008
-) -> ToolProvisionResponse:
-    """Provision tools for LLM consumption based on selection criteria."""
-    # Apply token budget if provided
-    if request.context_tokens:
-        gating_service.max_tokens = request.context_tokens
-
-    # Apply gating logic
-    selected_tools = await gating_service.select_tools(
-        tool_ids=request.tool_ids, max_tools=request.max_tools, user_context=user
-    )
-
-    # Format for MCP
-    mcp_tools = await gating_service.format_for_mcp(selected_tools)
-
-    # Convert to response format
-    tool_defs = [
-        MCPToolDefinition(
-            name=tool.name,
-            description=tool.description,
-            parameters=tool.inputSchema,
-            token_count=100,  # Simplified for now
-            server=getattr(selected_tools[i], "server", None),
-        )
-        for i, tool in enumerate(mcp_tools)
-    ]
-    
-    # Update proxy service with provisioned tools
-    from ..main import app
-    if hasattr(app.state, "proxy_service"):
-        for tool in selected_tools:
-            app.state.proxy_service.provision_tool(tool.id)
-
-    return ToolProvisionResponse(
-        tools=tool_defs,
-        metadata={
-            "total_tokens": sum(t.token_count for t in tool_defs),
-            "gating_applied": True,
-        },
-    )
-
-
 @router.post("/register", operation_id="register_tool")
 async def register_tool(
     tool: Tool,
     tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
 ) -> dict[str, str]:
-    """Register a new tool in the system."""
+    """Register a new tool in the system.
+    
+    Essential for AI agents to add tools discovered from MCP servers
+    or custom tools defined by users.
+    """
     await tool_repo.add_tool(tool)
     return {"status": "success", "tool_id": tool.id}
 
@@ -156,11 +100,13 @@ async def register_tool(
 async def clear_tools(
     tool_repo: Any = Depends(get_tool_repository),  # noqa: B008
 ) -> dict[str, str]:
-    """Clear all tools from the repository."""
+    """Clear all tools from the repository.
+    
+    Useful for administrative cleanup and testing scenarios.
+    """
     tool_repo._tools.clear()
     return {"status": "success", "message": "All tools cleared"}
 
 
-# Note: Tool execution proxy endpoint removed
-# The tool gating system's responsibility is to provide tool definitions,
-# not to execute them. LLMs should execute tools directly with MCP servers.
+# Note: Tool execution happens via the proxy API (/api/proxy/execute).
+# Server management happens via the simplified add_server endpoint (/api/mcp/add_server).
