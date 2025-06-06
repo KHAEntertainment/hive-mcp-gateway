@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     port: int = 8000
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     @property
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # MCP Server Configurations
-# Start with simple servers that don't require authentication
+# Include all MCP servers from Claude Desktop (except tool-gating itself)
 MCP_SERVERS = {
     "context7": {
         "command": "npx",
@@ -61,17 +61,26 @@ MCP_SERVERS = {
         "description": "Documentation search and library information",
         "env": {}
     },
-    # For testing, let's keep these but not connect initially
-    # "puppeteer": {
-    #     "command": "mcp-server-puppeteer",
-    #     "args": [],
-    #     "description": "Browser automation and web scraping",
-    #     "env": {}
-    # },
-    # "filesystem": {
-    #     "command": "mcp-server-filesystem",
-    #     "args": ["--root", "/tmp/mcp-workspace"],
-    #     "description": "File system operations",
-    #     "env": {}
-    # },
+    "basic-memory": {
+        "command": "/Users/andremachon/.local/bin/uvx",
+        "args": ["basic-memory", "mcp"],
+        "description": "Simple key-value memory storage",
+        "env": {}
+    },
+    "puppeteer": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+        "description": "Browser automation and web scraping",
+        "env": {}
+    },
+    "exa": {
+        "command": "exa-mcp-server",
+        "args": [
+            "--tools=web_search_exa,research_paper_search,twitter_search,company_research,crawling,competitor_finder,linkedin_search"
+        ],
+        "description": "Web search, research, and social media tools",
+        "env": {
+            "EXA_API_KEY": "b2491db3-f3de-4b99-a510-a6b81a179cdb"
+        }
+    }
 }

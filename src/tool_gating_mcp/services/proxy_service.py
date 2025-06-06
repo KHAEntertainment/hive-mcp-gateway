@@ -26,14 +26,15 @@ class ProxyService:
                 # Convert MCP tool to our Tool model
                 tool_obj = Tool(
                     id=f"{server_name}_{tool.name}",
-                    name=tool.name,
-                    description=tool.description or "",
-                    parameters=tool.inputSchema or {},
+                    name=getattr(tool, 'name', 'unknown'),
+                    description=getattr(tool, 'description', '') or "",
+                    parameters=getattr(tool, 'inputSchema', getattr(tool, 'parameters', {})) or {},
                     server=server_name,
-                    tags=self._extract_tags(tool.description),
+                    tags=self._extract_tags(getattr(tool, 'description', '')),
                     estimated_tokens=self._estimate_tokens(tool)
                 )
-                await self.tool_repository.add_tool(tool_obj)
+                # Use sync version of add_tool
+                self.tool_repository.add_tool_sync(tool_obj)
     
     def provision_tool(self, tool_id: str) -> None:
         """Mark a tool as provisioned for use
@@ -62,8 +63,61 @@ class ProxyService:
         """
         return tool_id in self.provisioned_tools
     
+    async def get_tool_execution_info(self, tool_id: str, arguments: dict) -> Dict[str, Any]:
+        """Get detailed information about what a tool execution will do
+        
+        Args:
+            tool_id: Tool identifier
+            arguments: Tool arguments
+            
+        Returns:
+            Dictionary with execution details
+        """
+        tool = self.tool_repository.get_tool(tool_id)
+        if not tool:
+            raise ValueError(f"Tool {tool_id} not found")
+        
+        # Build execution info
+        info = {
+            "tool_name": tool.name,
+            "server": tool.server,
+            "description": tool.description,
+            "action_summary": self._generate_action_summary(tool, arguments),
+            "estimated_tokens": tool.estimated_tokens,
+            "tags": tool.tags
+        }
+        
+        return info
+    
+    def _generate_action_summary(self, tool: Tool, arguments: dict) -> str:
+        """Generate a human-readable summary of what the tool will do
+        
+        Args:
+            tool: Tool object
+            arguments: Tool arguments
+            
+        Returns:
+            Action summary string
+        """
+        # Generate specific summaries based on tool patterns
+        if "search" in tool.name.lower():
+            query = arguments.get("query", "")
+            return f"Will search for '{query}'"
+        elif "screenshot" in tool.name.lower():
+            name = arguments.get("name", "screenshot")
+            return f"Will capture screenshot '{name}'"
+        elif "write" in tool.name.lower():
+            title = arguments.get("title", "note")
+            return f"Will write note '{title}'"
+        elif "research" in tool.name.lower():
+            target = arguments.get("query", "target")
+            return f"Will research '{target}'"
+        else:
+            # Generic summary
+            return f"Will execute {tool.name} with provided arguments"
+    
     async def execute_tool(self, tool_id: str, arguments: dict) -> Any:
-        """Execute a provisioned tool via proxy
+        """Execute a tool via proxy with real-time loading
         
         Args:
             tool_id: Tool identifier (format: "servername_toolname")
@@ -73,11 +127,8 @@ class ProxyService:
             Result from tool execution
             
         Raises:
-            ValueError: If tool not provisioned or invalid format
+            ValueError: If tool not found or invalid format
         """
-        if not self.is_provisioned(tool_id):
-            raise ValueError(f"Tool {tool_id} not provisioned. Use provision_tools first.")
-        
         # Parse server and tool name from ID
         if '_' not in tool_id:
             raise ValueError(f"Invalid tool ID format: {tool_id}")
@@ -85,7 +136,12 @@ class ProxyService:
         # Split only on first underscore to handle tool names with underscores
         server_name, tool_name = tool_id.split('_', 1)
         
-        # Execute via client manager
+        # Verify tool exists in repository (for validation)
+        tool = self.tool_repository.get_tool(tool_id)
+        if not tool:
+            raise ValueError(f"Tool {tool_id} not found in repository")
+        
+        # Execute via client manager - real-time loading happens here
         return await self.client_manager.execute_tool(server_name, tool_name, arguments)
     
     def _extract_tags(self, description: Optional[str]) -> List[str]:
@@ -133,6 +189,6 @@ class ProxyService:
             Estimated token count
         """
         # Simple estimation based on description and schema size
-        desc_tokens = len(str(tool.description or "").split()) * 1.3
-        schema_tokens = len(str(tool.inputSchema or {}).split()) * 1.3
+        desc_tokens = len(str(getattr(tool, 'description', '') or "").split()) * 1.3
+        schema_tokens = len(str(getattr(tool, 'inputSchema', {}) or {}).split()) * 1.3
         return int(desc_tokens + schema_tokens + 50)  # Base overhead

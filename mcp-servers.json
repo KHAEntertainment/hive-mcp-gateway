@@ -5,14 +5,26 @@
       "-y",
       "@upstash/context7-mcp@latest"
     ],
-    "env": {}
+    "env": {},
+    "description": "Documentation search and library information"
   },
-  "desktop-commander": {
+  "basic-memory": {
+    "command": "/Users/andremachon/.local/bin/uvx",
+    "args": [
+      "basic-memory",
+      "mcp"
+    ],
+    "env": {},
+    "description": "Simple key-value memory storage"
+  },
+  "puppeteer": {
     "command": "npx",
     "args": [
-      "@wonderwhy-er/desktop-commander@latest"
+      "-y",
+      "@modelcontextprotocol/server-puppeteer"
     ],
-    "env": {}
+    "env": {},
+    "description": "Browser automation and web scraping"
   },
   "exa": {
     "command": "exa-mcp-server",
@@ -21,29 +33,8 @@
     ],
     "env": {
       "EXA_API_KEY": "b2491db3-f3de-4b99-a510-a6b81a179cdb"
-    }
-  },
-  "basic-memory": {
-    "command": "/Users/andremachon/.local/bin/uvx",
-    "args": [
-      "basic-memory",
-      "mcp"
-    ],
-    "env": {}
-  },
-  "filesystem-tools": {
-    "command": "mcp-filesystem",
-    "args": [
-      "--root",
-      "/tmp",
-      "--read-only"
-    ],
-    "env": {}
-  },
-  "puppeteer": {
-    "command": "mcp-server-puppeteer",
-    "args": [],
-    "env": {}
+    },
+    "description": "Web search, research, and social media tools"
   },
   "git-test": {
     "command": "npx",

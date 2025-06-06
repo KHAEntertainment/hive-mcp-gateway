@@ -36,12 +36,16 @@ async def get_proxy_service() -> ProxyService:
     return app.state.proxy_service
 
 
-@router.post("/execute", response_model=ExecuteToolResponse)
+# Tool execution info endpoint removed - not essential for AI agents
+# The execute endpoint provides all necessary functionality
+
+
+@router.post("/execute", response_model=ExecuteToolResponse, operation_id="execute_tool")
 async def execute_tool(
     request: ExecuteToolRequest,
     proxy_service: ProxyService = Depends(get_proxy_service)
 ) -> ExecuteToolResponse:
-    """Execute a tool through the proxy
+    """Execute a tool through the proxy (no provisioning required)
     
     Args:
         request: Tool execution request with tool_id and arguments

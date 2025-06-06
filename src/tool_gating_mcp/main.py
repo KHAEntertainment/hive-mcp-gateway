@@ -35,18 +35,19 @@ async def lifespan(app: FastAPI):
         # Initialize client manager
         client_manager = MCPClientManager()
         
-        # Connect to configured servers
+        # Connect to all configured servers
+        logger.info("Connecting to MCP servers...")
         for server_name, config in MCP_SERVERS.items():
             try:
-                logger.info(f"Connecting to MCP server: {server_name}")
+                logger.info(f"Connecting to {server_name}: {config.get('description', 'No description')}")
                 await client_manager.connect_server(server_name, config)
-                logger.info(f"Successfully connected to {server_name}")
+                logger.info(f"✓ Successfully connected to {server_name}")
             except Exception as e:
-                logger.error(f"Failed to connect to {server_name}: {e}")
+                logger.error(f"✗ Failed to connect to {server_name}: {e}")
         
-        # Get tool repository from existing dependency
-        from .api.tools import get_tool_repository
-        tool_repository = await get_tool_repository()
+        # Get tool repository without circular import
+        from .services.repository import InMemoryToolRepository
+        tool_repository = InMemoryToolRepository()
         
         # Initialize proxy service
         proxy_service = ProxyService(client_manager, tool_repository)
@@ -84,13 +85,13 @@ app.include_router(mcp.router)
 app.include_router(proxy.router)
 
 
-@app.get("/")
+@app.get("/", operation_id="root")
 async def root() -> dict[str, str]:
     """Root endpoint."""
     return {"message": "Welcome to Tool Gating MCP"}
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, operation_id="health")
 async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy", message="Service is running")
@@ -99,40 +100,20 @@ async def health() -> HealthResponse:
 # Create and mount MCP server AFTER all routes are defined
 from fastapi_mcp import FastApiMCP
 
+# Exclude specific operations from being exposed as MCP tools
 mcp_server = FastApiMCP(
     app,
     name="tool-gating",
     description=(
         "Intelligently manage MCP tools to prevent context bloat. "
         "Discover and provision only the most relevant tools for each task."
-    )
+    ),
+    exclude_operations=["root", "health"]  # Exclude these endpoints from MCP tools
 )
 
 
-# Add execute_tool endpoint that will be exposed as MCP tool
-@app.post("/execute_tool", 
-    summary="Execute a provisioned tool",
-    description="Execute a tool on the appropriate backend MCP server")
-async def execute_tool(tool_id: str, arguments: dict) -> Any:
-    """Execute a provisioned tool on the appropriate MCP server.
-    
-    This is the main entry point for using tools discovered and provisioned
-    through Tool Gating. The tool must be provisioned first using provision_tools.
-    
-    Args:
-        tool_id: The tool identifier (format: "servername_toolname")
-        arguments: Tool-specific arguments as required by the tool
-        
-    Returns:
-        The result from the tool execution
-        
-    Raises:
-        ValueError: If tool is not provisioned or server is not connected
-    """
-    if not hasattr(app.state, "proxy_service"):
-        raise ValueError("Proxy service not initialized")
-    
-    return await app.state.proxy_service.execute_tool(tool_id, arguments)
+# Note: Tool execution is handled by /api/proxy/execute endpoint
+# This avoids duplication and keeps the API organized
 
 
 # Mount the MCP server to make it available at /mcp endpoint

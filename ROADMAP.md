@@ -1,5 +1,41 @@
 # Tool Gating MCP - Roadmap
 
+## Reccomendations
+⏺ 🚀 Recommendations for Tool Gating MCP
+
+  1. Protocol Completeness Improvements
+
+  High Priority
+
+  - Add Resource Support: Implement MCP Resources to expose discovered tools as browsable resources
+  - Add Prompts Feature: Create prompt templates for common workflows (e.g., "Find and provision web tools")
+  - Implement Subscriptions: Allow clients to subscribe to tool list changes
+  - Add Progress Tracking: For long-running tool discovery/execution
+
+  Medium Priority
+
+  - Sampling Support: Enable servers to request LLM assistance for intelligent tool selection
+  - Roots Support: Accept root URIs to scope tool discovery
+  - Cancellation: Add request cancellation for long operations
+  - MCP Logging: Implement proper MCP logging protocol
+
+  2. Security Enhancements
+
+  # Add to main.py for SSE security
+  @app.get("/mcp")
+  async def mcp_endpoint(request: Request):
+      # DNS rebinding protection
+      origin = request.headers.get("origin", "")
+      if origin and not origin.startswith(("http://localhost", "http://127.0.0.1")):
+          raise HTTPException(403, "Invalid origin")
+      # ... existing code
+
+  3. Architecture Refinements
+
+  - Implement connection pooling for backend servers
+  - Add caching layer for tool embeddings
+  - Support WebSocket transport for real-time updates
+
 ## Current Status (v0.2.0) ✅
 
 - [x] Core tool gating functionality with semantic search
