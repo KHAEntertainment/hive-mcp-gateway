@@ -85,13 +85,13 @@ app.include_router(mcp.router)
 app.include_router(proxy.router)
 
 
-@app.get("/", include_in_schema=False)
+@app.get("/", operation_id="root")
 async def root() -> dict[str, str]:
     """Root endpoint."""
     return {"message": "Welcome to Tool Gating MCP"}
 
 
-@app.get("/health", response_model=HealthResponse, include_in_schema=False)
+@app.get("/health", response_model=HealthResponse, operation_id="health")
 async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy", message="Service is running")
@@ -100,13 +100,15 @@ async def health() -> HealthResponse:
 # Create and mount MCP server AFTER all routes are defined
 from fastapi_mcp import FastApiMCP
 
+# Exclude specific operations from being exposed as MCP tools
 mcp_server = FastApiMCP(
     app,
     name="tool-gating",
     description=(
         "Intelligently manage MCP tools to prevent context bloat. "
         "Discover and provision only the most relevant tools for each task."
-    )
+    ),
+    exclude_operations=["root", "health"]  # Exclude these endpoints from MCP tools
 )
 
 
