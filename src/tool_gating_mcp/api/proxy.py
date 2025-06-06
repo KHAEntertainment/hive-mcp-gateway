@@ -1,7 +1,7 @@
 """Proxy API endpoints for tool execution"""
 
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Any, Dict, List
+from typing import Any, Dict
 from pydantic import BaseModel
 
 from ..services.proxy_service import ProxyService
@@ -21,22 +21,6 @@ class ExecuteToolResponse(BaseModel):
     result: Any
 
 
-class ToolExecutionInfoRequest(BaseModel):
-    """Request model for tool execution info"""
-    tool_id: str
-    arguments: Dict[str, Any]
-
-
-class ToolExecutionInfoResponse(BaseModel):
-    """Response model for tool execution info"""
-    tool_name: str
-    server: str
-    description: str
-    action_summary: str
-    estimated_tokens: int
-    tags: List[str]
-
-
 async def get_proxy_service() -> ProxyService:
     """Get proxy service from app state
     
@@ -52,33 +36,8 @@ async def get_proxy_service() -> ProxyService:
     return app.state.proxy_service
 
 
-@router.post("/execute/info", response_model=ToolExecutionInfoResponse, operation_id="get_tool_execution_info")
-async def get_tool_execution_info(
-    request: ToolExecutionInfoRequest,
-    proxy_service: ProxyService = Depends(get_proxy_service)
-) -> ToolExecutionInfoResponse:
-    """Get information about what a tool execution will do
-    
-    Args:
-        request: Tool execution info request
-        proxy_service: Injected proxy service
-        
-    Returns:
-        Tool execution information
-        
-    Raises:
-        HTTPException: On errors
-    """
-    try:
-        info = await proxy_service.get_tool_execution_info(
-            request.tool_id,
-            request.arguments
-        )
-        return ToolExecutionInfoResponse(**info)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get tool info: {str(e)}")
+# Tool execution info endpoint removed - not essential for AI agents
+# The execute endpoint provides all necessary functionality
 
 
 @router.post("/execute", response_model=ExecuteToolResponse, operation_id="execute_tool")

@@ -85,13 +85,13 @@ app.include_router(mcp.router)
 app.include_router(proxy.router)
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root() -> dict[str, str]:
     """Root endpoint."""
     return {"message": "Welcome to Tool Gating MCP"}
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, include_in_schema=False)
 async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy", message="Service is running")
