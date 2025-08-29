@@ -22,7 +22,7 @@ def start_server():
     env['PYTHONPATH'] = str(project_root)
     
     process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "tool_gating_mcp.main:app", "--host", "127.0.0.1", "--port", "8001"],
+        [sys.executable, "-m", "uvicorn", "hive_mcp_gateway.main:app", "--host", "127.0.0.1", "--port", "8001"],
         cwd=project_root,
         env=env,
         stdout=subprocess.PIPE,

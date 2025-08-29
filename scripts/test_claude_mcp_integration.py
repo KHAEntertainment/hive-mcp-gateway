@@ -115,7 +115,7 @@ const { SSETransport } = require('@modelcontextprotocol/sdk/transport/sse');
 async function testMCP() {
     console.log('Connecting to Tool Gating MCP...');
     
-    const transport = new SSETransport('http://localhost:8000/mcp');
+    const transport = new SSETransport('http://localhost:8001/mcp');
     const client = new Client({
         transport,
         name: 'test-client',

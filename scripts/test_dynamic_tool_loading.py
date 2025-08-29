@@ -25,7 +25,7 @@ def create_mcp_config_minimal() -> Path:
     config = {
         "mcpServers": {
             "tool-gating": {
-                "command": "/Users/andremachon/.local/bin/mcp-proxy",
+                "command": "mcp-proxy",
                 "args": ["http://localhost:8000/mcp"],
                 "env": {}
             }
@@ -43,7 +43,7 @@ def create_mcp_config_with_puppeteer() -> Path:
     config = {
         "mcpServers": {
             "tool-gating": {
-                "command": "/Users/andremachon/.local/bin/mcp-proxy",
+                "command": "mcp-proxy",
                 "args": ["http://localhost:8000/mcp"],
                 "env": {}
             },

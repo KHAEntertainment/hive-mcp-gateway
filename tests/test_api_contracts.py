@@ -133,7 +133,7 @@ class TestResponseFormats:
         from unittest.mock import patch
         mock_result = {"output": "test result", "success": True}
         
-        with patch('tool_gating_mcp.services.proxy_service.ProxyService.execute_tool') as mock_execute:
+        with patch('hive_mcp_gateway.services.proxy_service.ProxyService.execute_tool') as mock_execute:
             mock_execute.return_value = mock_result
             
             response = client.post("/api/proxy/execute", json={
@@ -213,7 +213,7 @@ class TestHTTPStatusCodes:
         # Mock internal error
         from unittest.mock import patch
         
-        with patch('tool_gating_mcp.services.discovery.DiscoveryService.search_tools') as mock_search:
+        with patch('hive_mcp_gateway.services.discovery.DiscoveryService.search_tools') as mock_search:
             mock_search.side_effect = RuntimeError("Internal error")
             
             response = client.post("/api/tools/discover", json={"query": "test"})

@@ -15,7 +15,7 @@ async def check_via_mcp_sdk():
     
     # Use mcp-proxy to connect
     server_params = StdioServerParameters(
-        command="/Users/andremachon/.local/bin/mcp-proxy",
+        command="mcp-proxy",
         args=["http://localhost:8000/mcp"],
         env={}
     )

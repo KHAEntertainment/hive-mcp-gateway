@@ -63,3 +63,148 @@ dmypy.json
 
 # uv
 .uv/
+
+# Qoder/Agent files
+.qoder/
+.superdesign/
+*.qoder
+*.superdesign
+
+# Temporary files and logs
+*.log
+*.tmp
+*.temp
+*~
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+*.swp
+*.swo
+
+# Build artifacts
+*.dmg
+*.app
+*.exe
+*.msi
+
+# macOS specific
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Agent/AI generated files
+.ai_generated/
+.autogen/
+
+# Debug and output files
+gui_output.log
+gui_startup.log
+server.log
+server_startup.log
+
+# PyInstaller build directories
+build/
+dist/
+*.spec
+
+# macOS specific build artifacts
+*.dSYM/
+
+# Configuration files (local)
+config/tool_gating_config.yaml
+config/*.local.*
+tool_gating_config.yaml
+
+# Lock files
+uv.lock
+
+# Additional unnecessary folders and files
+# Cache directories
+.cache/
+*/.cache/
+
+# Temporary directories
+tmp/
+temp/
+
+# Log files
+logs/
+*.log.*
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Editor backup files
+*~
+.#*
+*.orig
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editor files
+*.sublime-project
+*.sublime-workspace
+*.vscode/
+*.idea/
+
+# Additional AI/Agent files
+.agent/
+.agents/
+*/.agent/
+*/.agents/
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environment files
+.venv/
+venv/
+env/
+
+# Distribution files
+dist/
+build/
+*.egg-info/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Additional temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Node.js files (if applicable)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python specific
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.pyc
+__pycache__/

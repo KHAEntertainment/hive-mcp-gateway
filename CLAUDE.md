@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tool Gating MCP is a native MCP server built with FastAPI that intelligently manages MCP (Model Context Protocol) tools to prevent context window bloat. It enables AI assistants to work efficiently with hundreds of tools by selecting only the most relevant ones for each task.
+Hive MCP Gateway is a native MCP server built with FastAPI that intelligently manages MCP (Model Context Protocol) tools to prevent context window bloat. It enables AI assistants to work efficiently with hundreds of tools by selecting only the most relevant ones for each task.
 
 ### Key Features
 - **Semantic Tool Discovery**: Natural language queries find the right tools

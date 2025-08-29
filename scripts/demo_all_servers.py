@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Demo script showing Tool Gating MCP with all servers"""
+"""Demo script showing Hive MCP Gateway with all servers"""
 
 import requests
 import json

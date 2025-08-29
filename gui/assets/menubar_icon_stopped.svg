@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .status-path { 
+        fill: #F44336; 
+        stroke: none; 
+      }
+      .status-outline { 
+        fill: none; 
+        stroke: #F44336; 
+        stroke-width: 1.5; 
+        stroke-linecap: round; 
+        stroke-linejoin: round; 
+      }
+    </style>
+  </defs>
+  
+  <!-- Central hub with status color -->
+  <circle cx="11" cy="11" r="3" class="status-path"/>
+  
+  <!-- Network nodes -->
+  <circle cx="5" cy="5" r="1.2" class="status-path" opacity="0.7"/>
+  <circle cx="17" cy="5" r="1.2" class="status-path" opacity="0.7"/>
+  <circle cx="5" cy="17" r="1.2" class="status-path" opacity="0.7"/>
+  <circle cx="17" cy="17" r="1.2" class="status-path" opacity="0.7"/>
+  
+  <!-- Connection lines -->
+  <line x1="6.2" y1="6.2" x2="8.2" y2="8.2" class="status-outline"/>
+  <line x1="15.8" y1="6.2" x2="13.8" y2="8.2" class="status-outline"/>
+  <line x1="6.2" y1="15.8" x2="8.2" y2="13.8" class="status-outline"/>
+  <line x1="15.8" y1="15.8" x2="13.8" y2="13.8" class="status-outline"/>
+</svg>

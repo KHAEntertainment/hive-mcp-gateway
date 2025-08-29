@@ -12,9 +12,9 @@ sys.path.insert(0, str(project_root))
 if __name__ == "__main__":
     print("Starting Tool Gating MCP server...")
     uvicorn.run(
-        "tool_gating_mcp.main:app",
+        "hive_mcp_gateway.main:app",
         host="127.0.0.1",
-        port=8000,
+        port=8001,
         reload=False,
         log_level="info"
     )

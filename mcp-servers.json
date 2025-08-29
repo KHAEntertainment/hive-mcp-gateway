@@ -9,7 +9,7 @@
     "description": "Documentation search and library information"
   },
   "basic-memory": {
-    "command": "/Users/andremachon/.local/bin/uvx",
+    "command": "uvx",
     "args": [
       "basic-memory",
       "mcp"

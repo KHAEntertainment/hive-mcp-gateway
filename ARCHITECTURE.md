@@ -1,8 +1,8 @@
-# Tool Gating MCP Architecture
+# Hive MCP Gateway Architecture
 
 ## Overview
 
-Tool Gating MCP is an intelligent proxy/router that manages MCP tools to prevent context bloat. It acts as a single MCP server that Claude Desktop connects to, while internally managing connections to multiple backend MCP servers. The system discovers, ranks, and provisions only the most relevant tools for each task.
+Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent context bloat. It acts as a single MCP server that Claude Desktop connects to, while internally managing connections to multiple backend MCP servers. The system discovers, ranks, and provisions only the most relevant tools for each task.
 
 ## Core Responsibilities
 
@@ -31,7 +31,7 @@ Tool Gating MCP is an intelligent proxy/router that manages MCP tools to prevent
          │ MCP Protocol (SSE/stdio)
          │
 ┌────────▼────────────────────────┐
-│      Tool Gating MCP Proxy      │
+│      Hive MCP Gateway           │
 ├─────────────────────────────────┤
 │ • discover_tools                │
 │ • provision_tools               │
@@ -144,7 +144,7 @@ Parse Server Name → Route to Backend → Execute → Return Result
 - Limited context for conversation
 - Higher costs and slower responses
 
-### After Tool Gating
+### After Hive MCP Gateway
 - Only relevant tools: ~500-2000 tokens
 - More context for actual work
 - 50-90% token reduction
@@ -153,13 +153,13 @@ Parse Server Name → Route to Backend → Execute → Return Result
 
 ### For Claude Desktop Users
 
-1. **Configure Tool Gating Only**
+1. **Configure Hive MCP Gateway Only**
    ```json
    {
      "mcpServers": {
-       "tool-gating": {
+       "hive-gateway": {
          "command": "mcp-proxy",
-         "args": ["http://localhost:8000/mcp"]
+         "args": ["http://localhost:8001/mcp"]
        }
      }
    }
@@ -170,8 +170,8 @@ Parse Server Name → Route to Backend → Execute → Return Result
    - "Help me take screenshots" → finds browser automation tools
    - "I want to analyze code" → locates code analysis tools
 
-3. **Execute Through Proxy**
-   - All tool execution automatically routes through Tool Gating
+3. **Execute Through Gateway**
+   - All tool execution automatically routes through Hive MCP Gateway
    - No need to know which backend server has which tool
 
 ### For Developers Adding New MCP Servers
@@ -189,7 +189,7 @@ Parse Server Name → Route to Backend → Execute → Return Result
    ```
 
 2. **Tools Auto-Discovered**
-   - Tool Gating connects and indexes all tools
+   - Hive MCP Gateway connects and indexes all tools
    - Tools available immediately for discovery
 
 ## Configuration

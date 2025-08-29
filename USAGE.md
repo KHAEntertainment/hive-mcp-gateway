@@ -1,14 +1,14 @@
-# Tool Gating MCP Usage Guide
+# Hive MCP Gateway Usage Guide
 
 ## Overview
 
-Tool Gating MCP is an intelligent proxy that sits between Claude Desktop (or other MCP clients) and multiple MCP servers. It prevents context bloat by dynamically discovering and provisioning only the most relevant tools for each task.
+Hive MCP Gateway is an intelligent gateway that sits between Claude Desktop (or other MCP clients) and multiple MCP servers. It prevents context bloat by dynamically discovering and provisioning only the most relevant tools for each task.
 
 ## How It Works
 
-Instead of configuring 10+ MCP servers in Claude Desktop (100+ tools), you configure only Tool Gating:
-1. **Single Connection**: Claude connects only to Tool Gating MCP
-2. **Backend Management**: Tool Gating connects to all your MCP servers
+Instead of configuring 10+ MCP servers in Claude Desktop (100+ tools), you configure only Hive MCP Gateway:
+1. **Single Connection**: Claude connects only to Hive MCP Gateway
+2. **Backend Management**: Hive MCP Gateway connects to all your MCP servers
 3. **Smart Discovery**: Find tools across all servers with natural language
 4. **Dynamic Provisioning**: Load only relevant tools within token budgets
 5. **Transparent Execution**: Use tools as if directly connected to servers
@@ -22,7 +22,7 @@ Instead of configuring 10+ MCP servers in Claude Desktop (100+ tools), you confi
 
 ## MCP Tools Available
 
-When using Tool Gating as an MCP server, you have access to:
+When using Hive MCP Gateway as an MCP server, you have access to:
 
 ### 1. `discover_tools` - Find relevant tools
 ```json
@@ -55,16 +55,16 @@ When using Tool Gating as an MCP server, you have access to:
 ## Real-World Examples
 
 ### Example 1: Web Research Task
-**Without Tool Gating**: Load 100+ tools (Puppeteer, Exa, GitHub, Slack, etc.)
-**With Tool Gating**: Load only 3-4 tools (web_search, navigate, screenshot)
+**Without Hive MCP Gateway**: Load 100+ tools (Puppeteer, Exa, GitHub, Slack, etc.)
+**With Hive MCP Gateway**: Load only 3-4 tools (web_search, navigate, screenshot)
 
 ### Example 2: Code Analysis Task  
-**Without Tool Gating**: Load all filesystem, GitHub, database tools
-**With Tool Gating**: Load only relevant code analysis and file reading tools
+**Without Hive MCP Gateway**: Load all filesystem, GitHub, database tools
+**With Hive MCP Gateway**: Load only relevant code analysis and file reading tools
 
 ### Example 3: Documentation Task
-**Without Tool Gating**: Load every available tool
-**With Tool Gating**: Load only documentation search and file writing tools
+**Without Hive MCP Gateway**: Load every available tool
+**With Hive MCP Gateway**: Load only documentation search and file writing tools
 
 ## Best Practices for AI Assistants
 
@@ -87,7 +87,7 @@ When using Tool Gating as an MCP server, you have access to:
 
 ## HTTP API Endpoints (Alternative Usage)
 
-If using Tool Gating as an HTTP API instead of MCP:
+If using Hive MCP Gateway as an HTTP API instead of MCP:
 
 ### Tool Discovery
 ```
@@ -142,18 +142,18 @@ The system automatically:
 
 ## Setup for Claude Desktop
 
-1. **Start Tool Gating**:
+1. **Start Hive MCP Gateway**:
    ```bash
-   tool-gating-mcp
+   hive-mcp-gateway
    ```
 
 2. **Configure Claude Desktop** (only once):
    ```json
    {
      "mcpServers": {
-       "tool-gating": {
+       "hive-gateway": {
          "command": "/path/to/mcp-proxy",
-         "args": ["http://localhost:8000/mcp"]
+         "args": ["http://localhost:8001/mcp"]
        }
      }
    }
@@ -165,7 +165,7 @@ The system automatically:
    - "I want to work with documentation" → Locates Context7 tools
 
 4. **Execute Seamlessly**:
-   - All tool execution routes through Tool Gating automatically
+   - All tool execution routes through Hive MCP Gateway automatically
    - No need to know which backend server has which tool
    - Context stays clean with only provisioned tools
 

@@ -180,7 +180,7 @@ async def main():
     # Start the server
     print("\nStarting Tool Gating MCP server...")
     server_process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "tool_gating_mcp.main:app", "--port", "8001"],
+        [sys.executable, "-m", "uvicorn", "hive_mcp_gateway.main:app", "--port", "8001"],
         cwd=project_root,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE

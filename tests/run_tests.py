@@ -88,7 +88,7 @@ def main():
     
     if args.coverage:
         pytest_args.extend([
-            "--cov=tool_gating_mcp",
+            "--cov=hive_mcp_gateway",
             "--cov-report=html",
             "--cov-report=term-missing"
         ])

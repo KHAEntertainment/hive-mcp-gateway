@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo script for the Tool Gating MCP System.
+Demo script for the Hive MCP Gateway System.
 
 This demonstrates how the system intelligently selects and provides tools
 to LLMs based on context, reducing token usage while maintaining functionality.
@@ -18,7 +18,7 @@ console = Console()
 async def run_demo():
     """Run the complete demo."""
     async with httpx.AsyncClient(base_url="http://localhost:8000") as client:
-        console.print("\n[bold cyan]Tool Gating MCP System Demo[/bold cyan]\n")
+        console.print("\n[bold cyan]Hive MCP Gateway System Demo[/bold cyan]\n")
 
         # Scenario 1: Math Query
         console.print("[bold]Scenario 1:[/bold] User needs math calculations")
@@ -137,7 +137,7 @@ async def demo_token_budget(client):
 
 
 if __name__ == "__main__":
-    console.print("[bold green]Starting Tool Gating MCP Demo...[/bold green]")
+    console.print("[bold green]Starting Hive MCP Gateway Demo...[/bold green]")
     console.print(
         "\n[yellow]Make sure the server is running with:[/yellow] tool-gating-mcp\n"
     )

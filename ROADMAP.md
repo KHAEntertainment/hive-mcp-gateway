@@ -1,7 +1,7 @@
-# Tool Gating MCP - Roadmap
+# Hive MCP Gateway - Roadmap
 
 ## Reccomendations
-⏺ 🚀 Recommendations for Tool Gating MCP
+⏺ 🚀 Recommendations for Hive MCP Gateway
 
   1. Protocol Completeness Improvements
 
@@ -183,7 +183,7 @@ tool-gating-mcp add-smithery "mcp-server-github"
 
 ## Vision Statement 🎯
 
-Tool Gating MCP aims to become the universal proxy layer for the MCP ecosystem, enabling AI assistants to dynamically discover and use tools from any MCP server while maintaining optimal context usage. By acting as an intelligent router between clients and servers, we're building towards a future where managing hundreds of MCP tools is as simple as connecting to a single, smart proxy that understands what you need.
+Hive MCP Gateway aims to become the universal proxy layer for the MCP ecosystem, enabling AI assistants to dynamically discover and use tools from any MCP server while maintaining optimal context usage. By acting as an intelligent router between clients and servers, we're building towards a future where managing hundreds of MCP tools is as simple as connecting to a single, smart proxy that understands what you need.
 
 ---
 

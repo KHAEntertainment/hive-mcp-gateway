@@ -186,7 +186,7 @@ async def main():
                 raise httpx.RequestError("Server not healthy")
         except (httpx.RequestError, httpx.TimeoutException):
             print("No server running. Please start the server with:")
-            print("  cd /Users/andremachon/Projects/tool-gating-mcp")
+            print("  cd /path/to/tool-gating-mcp")
             print("  tool-gating-mcp")
             print("\nThen run this script again.")
             return False

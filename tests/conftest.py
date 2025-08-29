@@ -10,13 +10,13 @@ from unittest.mock import AsyncMock, MagicMock
 from typing import Any, Dict, List
 from fastapi.testclient import TestClient
 
-from tool_gating_mcp.main import app
-from tool_gating_mcp.models.tool import Tool
-from tool_gating_mcp.models.mcp_config import MCPServerConfig
-from tool_gating_mcp.services.repository import InMemoryToolRepository
-from tool_gating_mcp.services.discovery import DiscoveryService
-from tool_gating_mcp.services.mcp_client_manager import MCPClientManager
-from tool_gating_mcp.services.proxy_service import ProxyService
+from hive_mcp_gateway.main import app
+from hive_mcp_gateway.models.tool import Tool
+from hive_mcp_gateway.models.mcp_config import MCPServerConfig
+from hive_mcp_gateway.services.repository import InMemoryToolRepository
+from hive_mcp_gateway.services.discovery import DiscoveryService
+from hive_mcp_gateway.services.mcp_client_manager import MCPClientManager
+from hive_mcp_gateway.services.proxy_service import ProxyService
 
 
 @pytest.fixture
@@ -206,7 +206,7 @@ def error_scenarios():
 async def cleanup_after_test():
     """Cleanup fixture that runs after each test"""
     # Clear repository before test
-    from tool_gating_mcp.api.tools import _tool_repository
+    from hive_mcp_gateway.api.tools import _tool_repository
     if _tool_repository:
         _tool_repository._tools.clear()
         _tool_repository._usage_counts.clear()

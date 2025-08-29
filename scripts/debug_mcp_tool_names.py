@@ -3,7 +3,7 @@
 Debug MCP tool names to find which ones exceed Claude's 64-character limit.
 
 This script:
-1. Connects to Tool Gating MCP server
+1. Connects to Hive MCP Gateway server
 2. Lists all available tools
 3. Checks for tool names > 64 characters
 4. Tests with Claude Code in headless mode
@@ -105,7 +105,7 @@ def create_test_mcp_config() -> Path:
     config = {
         "mcpServers": {
             "tool-gating": {
-                "command": "/Users/andremachon/.local/bin/mcp-proxy",
+                "command": "mcp-proxy",
                 "args": ["http://localhost:8000/mcp"]
             }
         }

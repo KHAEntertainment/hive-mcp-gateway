@@ -1,0 +1,94 @@
+{
+  "toolGating": {
+    "port": 8001,
+    "host": "0.0.0.0",
+    "logLevel": "info",
+    "autoDiscover": true,
+    "maxTokensPerRequest": 2000,
+    "maxToolsPerRequest": 10,
+    "configWatchEnabled": true
+  },
+  "backendMcpServers": {
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "env": {},
+      "description": "Documentation search and library information",
+      "enabled": true,
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": []
+        },
+        "timeout": 30,
+        "retryCount": 3
+      }
+    },
+    "basic_memory": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["basic-memory", "mcp"],
+      "env": {},
+      "description": "Simple key-value memory storage",
+      "enabled": true,
+      "options": {
+        "timeout": 15,
+        "retryCount": 2
+      }
+    },
+    "puppeteer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "env": {},
+      "description": "Browser automation and web scraping - High tool count server",
+      "enabled": true,
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "puppeteer_screenshot",
+            "puppeteer_pdf",
+            "puppeteer_navigate",
+            "puppeteer_click",
+            "puppeteer_type",
+            "puppeteer_scrape"
+          ]
+        },
+        "timeout": 60,
+        "retryCount": 3,
+        "batchSize": 5
+      }
+    },
+    "exa": {
+      "type": "stdio",
+      "command": "exa-mcp-server",
+      "args": [
+        "--tools=web_search_exa,research_paper_search,twitter_search,company_research,crawling,competitor_finder,linkedin_search"
+      ],
+      "env": {
+        "EXA_API_KEY": "${EXA_API_KEY}"
+      },
+      "description": "Web search, research, and social media tools - High tool count server with 100+ tools",
+      "enabled": true,
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "web_search_exa",
+            "research_paper_search",
+            "twitter_search",
+            "company_research",
+            "crawling",
+            "competitor_finder",
+            "linkedin_search"
+          ]
+        },
+        "timeout": 45,
+        "retryCount": 3,
+        "batchSize": 10
+      }
+    }
+  }
+}
