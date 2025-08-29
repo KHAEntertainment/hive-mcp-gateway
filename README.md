@@ -253,6 +253,8 @@ Hive MCP Gateway includes comprehensive error handling with:
 4. Push to the branch
 5. Create a pull request
 
+Note: Development artifacts, historical documents, and outdated files have been moved to the `.archive` directory to keep the repository clean. These files are not tracked by git but are kept for historical reference.
+
 ## License
 
 MIT
