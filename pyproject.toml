@@ -1,14 +1,14 @@
 [project]
 name = "hive-mcp-gateway"
 version = "0.3.0"
-description = "Intelligent MCP gateway and tool management system - part of The Hive agentic coding ecosystem"
+description = "Intelligent MCP gateway and tool management system for any MCP-compatible client including Claude Code, Claude Desktop, Gemini CLI, and other agentic coding systems"
 readme = "README.md"
 authors = [
     { name = "KHAEntertainment", email = "contact@khaentertainment.com" }
 ]
 repository = "https://github.com/KHAEntertainment/hive-mcp-gateway"
 homepage = "https://github.com/KHAEntertainment/hive-mcp-gateway"
-keywords = ["mcp", "ai", "tools", "gateway", "hive", "agentic", "proxy"]
+keywords = ["mcp", "ai", "tools", "gateway", "hive", "agentic", "proxy", "claude", "claude-code"]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.104.0",

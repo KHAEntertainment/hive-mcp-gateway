@@ -43,7 +43,7 @@ class ServiceManager(QObject):
         # Service configuration
         self.tool_gating_port = 8001  # Non-interfering port
         self.mcp_proxy_port = 9090
-        self.mcp_proxy_path = Path("/Users/bbrenner/tool-gating-mcp")
+        self.mcp_proxy_path = Path("/Users/bbrenner/hive-mcp-gateway")
         
         # Process tracking
         self.tool_gating_process: Optional[QProcess] = None
@@ -166,7 +166,7 @@ class ServiceManager(QObject):
         is_running = self.is_service_running()
         
         status = ServiceStatus(
-            name="tool-gating-mcp",
+            name="hive-mcp-gateway",
             is_running=is_running,
             port=self.tool_gating_port,
             last_check=datetime.now()
@@ -270,8 +270,14 @@ class ServiceManager(QObject):
             logger.error(f"Error during status check: {e}")
             self.status_changed.emit("error")
     
-    def _get_start_command(self) -> Optional[List[str]]:
-        """Get the command to start Hive MCP Gateway service."""
+    def _get_start_command(self) -> List[str]:
+        """Get the command to start the Hive MCP Gateway service."""
+        # Try to find the hive-mcp-gateway command in PATH
+        result = subprocess.run(["which", "hive-mcp-gateway"], 
+                              capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            return ["hive-mcp-gateway"]
+        
         # Try to determine the best way to start the service
         
         # Method 1: Check if installed as package

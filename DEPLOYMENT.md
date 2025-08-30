@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers the deployment and migration process for the improved Hive MCP Gateway system with JSON configuration, PyQt6 GUI, and native macOS app bundle support.
+This guide covers the deployment and migration process for the improved Hive MCP Gateway system with JSON configuration, PyQt6 GUI, and native macOS app bundle support. Hive MCP Gateway works with any MCP-compatible client, including Claude Desktop, Claude Code, Gemini CLI, Kiro, and other agentic coding systems.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@ This guide covers the deployment and migration process for the improved Hive MCP
 
 ### Prerequisites
 
-- Existing Hive MCP Gateway installation at `/Users/bbrenner/tool-gating-mcp`
+- Existing Hive MCP Gateway installation at `/Users/bbrenner/hive-mcp-gateway`
 - Python 3.12+
 - uv package manager
 - PyQt6 (for GUI functionality)
@@ -26,7 +26,7 @@ This guide covers the deployment and migration process for the improved Hive MCP
 
 ```bash
 # Clone or navigate to the new implementation
-cd /path/to/new/tool-gating-mcp
+cd /path/to/new/hive-mcp-gateway
 
 # Install dependencies
 uv sync
@@ -42,10 +42,10 @@ The system includes an automated migration utility:
 ```bash
 # Run migration to import existing servers
 python -c "
-from src.tool_gating_mcp.services.config_manager import ConfigManager
-from src.tool_gating_mcp.services.migration_utility import MigrationUtility
+from src.hive_mcp_gateway.services.config_manager import ConfigManager
+from src.hive_mcp_gateway.services.migration_utility import MigrationUtility
 
-config_manager = ConfigManager('tool_gating_config.json')
+config_manager = ConfigManager('hive_mcp_gateway_config.json')
 migration = MigrationUtility(config_manager)
 
 # Migrate all servers
@@ -60,10 +60,10 @@ print(f'Large servers migration: {large_result}')
 
 ### Step 3: Verify Configuration
 
-Check the generated `tool_gating_config.json`:
+Check the generated `hive_mcp_gateway_config.json`:
 
 ```bash
-cat tool_gating_config.json
+cat hive_mcp_gateway_config.json
 ```
 
 The configuration should include your migrated servers with the new format:
@@ -96,7 +96,7 @@ Run the new implementation alongside your existing one:
 
 ```bash
 # Start new implementation (uses port 8001)
-python src/tool_gating_mcp/main.py
+python src/hive_mcp_gateway/main.py
 
 # Verify it's running
 curl http://localhost:8001/health
@@ -104,6 +104,24 @@ curl http://localhost:8001/health
 # Your existing implementation continues on port 8000
 curl http://localhost:8000/health
 ```
+
+## Universal MCP Client Support
+
+Hive MCP Gateway works with **any MCP-compatible client**, including but not limited to:
+- Claude Desktop
+- Claude Code
+- Gemini CLI
+- Kiro
+- Other agentic coding systems
+
+### Special Benefits for Claude Code
+
+Claude Code in particular suffers from major context window bloat as you add numerous MCPs to its configuration. With Hive MCP Gateway, you can:
+
+1. **Reduce Context Bloat**: Instead of loading 50+ tools that consume thousands of tokens, load only the 3-5 tools you actually need
+2. **Improve Performance**: Faster startup times and more responsive interactions
+3. **Better Resource Management**: Less memory usage and reduced computational overhead
+4. **Dynamic Tool Loading**: Load different tools for different coding tasks without reconfiguring your client
 
 ## Native macOS Deployment
 
@@ -137,7 +155,7 @@ Then run:
 
 ```bash
 # Copy to Applications folder
-cp -r dist/ToolGatingMCP.app /Applications/
+cp -r dist/HiveMCPGateway.app /Applications/
 
 # Or create installer DMG
 python build/macos_bundle.py --dmg
@@ -154,7 +172,7 @@ python build/macos_bundle.py --dmg
 
 1. **Launch the app** from Applications or via terminal:
 ```bash
-/Applications/ToolGatingMCP.app/Contents/MacOS/ToolGatingMCP
+/Applications/HiveMCPGateway.app/Contents/MacOS/HiveMCPGateway
 ```
 
 2. **Menu Bar Controls:**
@@ -198,15 +216,18 @@ Create `.env` file:
 EXA_API_KEY=your_exa_api_key_here
 LOG_LEVEL=info
 HOST=0.0.0.0
+```
+
+HOST=0.0.0.0
 PORT=8001
 ```
 
 2. **Volume Persistence:**
 
 Configuration and logs are persisted in Docker volumes:
-- `tool-gating-config`: Configuration files
-- `tool-gating-logs`: Application logs
-- `tool-gating-data`: Application data
+- `hive-mcp-gateway-config`: Configuration files
+- `hive-mcp-gateway-logs`: Application logs
+- `hive-mcp-gateway-data`: Application data
 
 3. **Custom Configuration:**
 
@@ -214,7 +235,7 @@ Mount your own config file:
 
 ```yaml
 volumes:
-  - ./my-config.json:/app/tool_gating_config.json:ro
+  - ./my-config.json:/app/hive_mcp_gateway_config.json:ro
 ```
 
 ## Development Setup
@@ -227,7 +248,7 @@ uv sync
 uv pip install -e .
 
 # Run with live reload
-uvicorn tool_gating_mcp.main:app --reload --port 8001
+uvicorn hive_mcp_gateway.main:app --reload --port 8001
 
 # Run GUI for testing
 python gui/main_app.py
@@ -238,7 +259,7 @@ python gui/main_app.py
 ```bash
 # Test configuration loading
 python -c "
-from src.tool_gating_mcp.services.config_manager import ConfigManager
+from src.hive_mcp_gateway.services.config_manager import ConfigManager
 cm = ConfigManager()
 config = cm.load_config()
 print('Config loaded successfully:', config.tool_gating.port)
@@ -247,14 +268,14 @@ print('Config loaded successfully:', config.tool_gating.port)
 # Test file watching
 python -c "
 import asyncio
-from src.tool_gating_mcp.services.config_manager import ConfigManager
-from src.tool_gating_mcp.services.file_watcher import FileWatcherService
+from src.hive_mcp_gateway.services.config_manager import ConfigManager
+from src.hive_mcp_gateway.services.file_watcher import FileWatcherService
 
 async def test_watcher():
     cm = ConfigManager()
     fw = FileWatcherService(cm, None)
     await fw.start_watching()
-    print('File watcher started - edit tool_gating_config.json to test')
+    print('File watcher started - edit hive_mcp_gateway_config.json to test')
     await asyncio.sleep(30)
     await fw.stop_watching()
 
@@ -331,7 +352,7 @@ The system watches for configuration file changes and automatically:
    lsof -i :8001
    
    # Change port in config
-   jq '.toolGating.port = 8002' tool_gating_config.json > tmp.json && mv tmp.json tool_gating_config.json
+   jq '.toolGating.port = 8002' hive_mcp_gateway_config.json > tmp.json && mv tmp.json hive_mcp_gateway_config.json
    ```
 
 2. **mcp-proxy Not Found:**
@@ -340,14 +361,14 @@ The system watches for configuration file changes and automatically:
    ps aux | grep mcp-proxy
    
    # Start mcp-proxy if needed (from your existing installation)
-   cd /Users/bbrenner/tool-gating-mcp
+   cd /Users/bbrenner/hive-mcp-gateway
    ./mcp-proxy
    ```
 
 3. **GUI Issues on macOS:**
    ```bash
    # If app won't start, check permissions
-   xattr -d com.apple.quarantine /Applications/ToolGatingMCP.app
+   xattr -d com.apple.quarantine /Applications/HiveMCPGateway.app
    
    # For development, run with debug output
    python gui/main_app.py --debug
@@ -357,11 +378,11 @@ The system watches for configuration file changes and automatically:
    ```bash
    # Validate configuration manually
    python -c "
-   from src.tool_gating_mcp.services.config_manager import ConfigManager
+   from src.hive_mcp_gateway.services.config_manager import ConfigManager
    import json
    
    cm = ConfigManager()
-   with open('tool_gating_config.json') as f:
+   with open('hive_mcp_gateway_config.json') as f:
        data = json.load(f)
    
    result = cm.validate_config(data)
@@ -404,7 +425,7 @@ After successful deployment:
 1. **Enable Auto-Start:** Use GUI to configure Launch Agent for system startup
 2. **Monitor Performance:** Check logs and system resources
 3. **Customize Configuration:** Add/remove servers as needed
-4. **Backup Configuration:** Store `tool_gating_config.json` in version control
+4. **Backup Configuration:** Store `hive_mcp_gateway_config.json` in version control
 5. **Update Dependencies:** Keep MCP servers and Hive MCP Gateway updated
 
 For additional support, check the project documentation and GitHub issues.

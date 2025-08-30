@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Test Tool Gating MCP integration using Claude in headless mode
+Test Hive MCP Gateway integration using any MCP-compatible client in headless mode
+
+Works with Claude Code, Claude Desktop, Gemini CLI, and other MCP-compatible clients.
 """
 
 import json
@@ -17,13 +19,13 @@ def create_mcp_config():
     """Create temporary MCP configuration for testing"""
     config = {
         "mcpServers": {
-            "tool-gating": {
-                "url": "http://localhost:8000/mcp"
+            "hive-gateway": {
+                "url": "http://localhost:8001/mcp"
             }
         }
     }
     
-    # Create temporary config file
+    // Create temporary config file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
         json.dump(config, f, indent=2)
         config_path = f.name
@@ -37,9 +39,9 @@ def create_mcp_config():
 def test_with_claude_cli(config_path: str):
     """Test using Claude CLI with MCP configuration"""
     
-    # Test prompts to exercise Tool Gating
+    // Test prompts to exercise Hive MCP Gateway
     test_prompts = [
-        "List all registered MCP servers using the tool_gating tools",
+        "List all registered MCP servers using the hive_gateway tools",
         "Use the discover_tools function to find tools for 'working with git repositories'",
         "Register a new MCP server called 'test-server' with command 'echo' and args ['hello']"
     ]
@@ -48,7 +50,7 @@ def test_with_claude_cli(config_path: str):
         console.print(f"\n[bold cyan]Test {i}: {prompt}[/bold cyan]")
         
         try:
-            # Run Claude with MCP config
+            // Run Claude with MCP config
             cmd = [
                 "claude",
                 "-p", prompt,
@@ -85,10 +87,10 @@ def test_with_curl():
     """Test MCP endpoint directly with curl"""
     console.print("\n[bold cyan]Testing MCP endpoint directly[/bold cyan]")
     
-    # Test if MCP endpoint is accessible
+    // Test if MCP endpoint is accessible
     try:
         result = subprocess.run(
-            ["curl", "-s", "-I", "http://localhost:8000/mcp"],
+            ["curl", "-s", "-I", "http://localhost:8001/mcp"],
             capture_output=True,
             text=True,
             timeout=5
@@ -113,7 +115,7 @@ const { Client } = require('@modelcontextprotocol/sdk');
 const { SSETransport } = require('@modelcontextprotocol/sdk/transport/sse');
 
 async function testMCP() {
-    console.log('Connecting to Tool Gating MCP...');
+    console.log('Connecting to Hive MCP Gateway...');
     
     const transport = new SSETransport('http://localhost:8001/mcp');
     const client = new Client({
@@ -154,13 +156,13 @@ async function testMCP() {
 testMCP().catch(console.error);
 """
     
-    # Write script to temp file
+    // Write script to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
         f.write(node_script)
         script_path = f.name
     
     try:
-        # Check if MCP SDK is installed
+        // Check if MCP SDK is installed
         check_result = subprocess.run(
             ["npm", "list", "@modelcontextprotocol/sdk"],
             capture_output=True,
@@ -174,7 +176,7 @@ testMCP().catch(console.error);
                 check=True
             )
         
-        # Run the test script
+        // Run the test script
         result = subprocess.run(
             ["node", script_path],
             capture_output=True,
@@ -193,42 +195,42 @@ testMCP().catch(console.error);
 
 
 def check_server_running():
-    """Check if Tool Gating server is running"""
+    """Check if Hive MCP Gateway server is running"""
     try:
         result = subprocess.run(
-            ["curl", "-s", "http://localhost:8000/health"],
+            ["curl", "-s", "http://localhost:8001/health"],
             capture_output=True,
             text=True,
             timeout=2
         )
         
         if result.returncode == 0 and "healthy" in result.stdout:
-            console.print("[green]✓ Tool Gating server is running[/green]")
+            console.print("[green]✓ Hive MCP Gateway server is running[/green]")
             return True
         else:
-            console.print("[red]✗ Tool Gating server is not running[/red]")
-            console.print("Start it with: tool-gating-mcp")
+            console.print("[red]✗ Hive MCP Gateway server is not running[/red]")
+            console.print("Start it with: hive-mcp-gateway")
             return False
     except:
-        console.print("[red]✗ Cannot connect to Tool Gating server[/red]")
+        console.print("[red]✗ Cannot connect to Hive MCP Gateway server[/red]")
         return False
 
 
 def main():
     """Run all tests"""
-    console.print("[bold green]Tool Gating MCP Integration Test[/bold green]\n")
+    console.print("[bold green]Hive MCP Gateway Integration Test[/bold green]\n")
     
-    # Check server
+    // Check server
     if not check_server_running():
         return
     
-    # Test MCP endpoint
+    // Test MCP endpoint
     test_with_curl()
     
-    # Test with Node.js
+    // Test with Node.js
     test_with_node_script()
     
-    # Test with Claude CLI if available
+    // Test with Claude CLI if available
     config_path = create_mcp_config()
     try:
         test_with_claude_cli(config_path)

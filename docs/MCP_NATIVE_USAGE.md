@@ -2,27 +2,45 @@
 
 ## Overview
 
-Tool Gating MCP is now a native MCP server that exposes all its API endpoints as MCP tools. When you run the server, it automatically provides an MCP endpoint at `/mcp` that works with Claude Desktop and other MCP clients.
+Hive MCP Gateway is now a native MCP server that exposes all its API endpoints as MCP tools. When you run the server, it automatically provides an MCP endpoint at `/mcp` that works with any MCP-compatible client, including Claude Desktop, Claude Code, Gemini CLI, Kiro, and other agentic coding systems.
 
-## Two Ways to Use Tool Gating as MCP
+## Universal MCP Client Support
+
+Hive MCP Gateway works with **any MCP-compatible client**, including but not limited to:
+- Claude Desktop
+- Claude Code
+- Gemini CLI
+- Kiro
+- Other agentic coding systems
+
+### Special Benefits for Claude Code
+
+Claude Code in particular suffers from major context window bloat as you add numerous MCPs to its configuration. With Hive MCP Gateway, you can:
+
+1. **Reduce Context Bloat**: Instead of loading 50+ tools that consume thousands of tokens, load only the 3-5 tools you actually need
+2. **Improve Performance**: Faster startup times and more responsive interactions
+3. **Better Resource Management**: Less memory usage and reduced computational overhead
+4. **Dynamic Tool Loading**: Load different tools for different coding tasks without reconfiguring your client
+
+## Two Ways to Use Hive MCP Gateway as MCP
 
 ### Option 1: HTTP/SSE Mode (Built-in)
 
-When you run the Tool Gating server normally, it automatically exposes an MCP endpoint:
+When you run the Hive MCP Gateway server normally, it automatically exposes an MCP endpoint:
 
 ```bash
 # Start the server
-tool-gating-mcp
+hive-mcp-gateway
 
 # MCP endpoint is now available at:
-# http://localhost:8000/mcp
+# http://localhost:8001/mcp
 ```
 
 This can be used with MCP clients that support HTTP/SSE transport.
 
-### Option 2: stdio Mode for Claude Desktop
+### Option 2: stdio Mode for Any MCP Client
 
-Claude Desktop requires stdio transport. You have two options:
+Many MCP clients, including Claude Desktop and Claude Code, require stdio transport. You have two options:
 
 #### Using mcp-proxy (Recommended)
 
@@ -31,33 +49,34 @@ Claude Desktop requires stdio transport. You have two options:
 uv tool install mcp-proxy
 ```
 
-2. Add to Claude Desktop configuration:
+2. Add to your MCP client configuration:
 
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+For Claude Desktop, edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+For other clients, refer to their specific configuration methods:
 
 ```json
 {
   "mcpServers": {
-    "tool-gating": {
+    "hive-gateway": {
       "command": "/Users/YOUR_USERNAME/.local/bin/mcp-proxy",
-      "args": ["http://localhost:8000/mcp"]
+      "args": ["http://localhost:8001/mcp"]
     }
   }
 }
 ```
 
-3. Make sure Tool Gating server is running:
+3. Make sure Hive MCP Gateway server is running:
 ```bash
-tool-gating-mcp
+hive-mcp-gateway
 ```
 
-4. Restart Claude Desktop
+4. Restart your MCP client
 
-Note: Replace `YOUR_USERNAME` with your actual username. The full path is required because Claude Desktop may not have access to your shell's PATH.
+Note: Replace `YOUR_USERNAME` with your actual username. The full path is required because many MCP clients may not have access to your shell's PATH.
 
 ## Available MCP Tools
 
-When connected as an MCP server, Tool Gating provides these tools:
+When connected as an MCP server, Hive MCP Gateway provides these tools:
 
 ### Core Tools
 
@@ -148,8 +167,8 @@ Register an individual tool.
 
 ## Usage Workflow
 
-### Step 1: Start with Tool Gating
-When Claude Desktop starts, it automatically connects to Tool Gating MCP.
+### Step 1: Start with Hive MCP Gateway
+When your MCP client starts, it automatically connects to Hive MCP Gateway.
 
 ### Step 2: Discover What You Need
 Use `discover_tools` to find relevant tools:
@@ -172,7 +191,7 @@ Register the "code-analysis" MCP server
 ## Benefits of Native MCP Integration
 
 1. **Direct Protocol Access**: No HTTP overhead, direct MCP communication
-2. **Automatic Tool Discovery**: Claude sees Tool Gating tools immediately
+2. **Automatic Tool Discovery**: Your MCP client sees Hive MCP Gateway tools immediately
 3. **Seamless Integration**: Works like any other MCP server
 4. **Meta-Tool Management**: Use MCP tools to manage other MCP tools
 
@@ -182,12 +201,12 @@ Register the "code-analysis" MCP server
 
 1. **Verify server is running**:
    ```bash
-   curl http://localhost:8000/health
+   curl http://localhost:8001/health
    ```
 
 2. **Check MCP endpoint**:
    ```bash
-   curl -H "Accept: text/event-stream" http://localhost:8000/mcp
+   curl -H "Accept: text/event-stream" http://localhost:8001/mcp
    ```
 
 3. **Test with the provided script**:
@@ -197,9 +216,9 @@ Register the "code-analysis" MCP server
 
 ## Troubleshooting
 
-### Tools Not Appearing in Claude Desktop
+### Tools Not Appearing in Your MCP Client
 
-1. **Check mcp-proxy path**: Claude Desktop needs the full path to mcp-proxy
+1. **Check mcp-proxy path**: Many MCP clients need the full path to mcp-proxy
    ```bash
    which mcp-proxy
    # Should show: /Users/YOUR_USERNAME/.local/bin/mcp-proxy
@@ -207,11 +226,11 @@ Register the "code-analysis" MCP server
 
 2. **Verify server is running**:
    ```bash
-   curl http://localhost:8000/health
+   curl http://localhost:8001/health
    ```
 
-3. **Check Claude Desktop logs**:
-   - Open Claude Desktop DevTools (Cmd+Option+I)
+3. **Check your MCP client logs**:
+   - Refer to your client's documentation for accessing logs
    - Look for MCP connection errors
 
 ### Common Issues
@@ -220,17 +239,17 @@ Register the "code-analysis" MCP server
    - Solution: Use full path to mcp-proxy in config
    
 2. **"Address already in use" error**:
-   - Solution: Kill existing process: `pkill -f tool-gating-mcp`
+   - Solution: Kill existing process: `pkill -f hive-mcp-gateway`
    
 3. **Tools have verbose names**:
    - This has been fixed! Tools now have clean names like `discover_tools`
 
 ## Integration with Other MCP Servers
 
-Tool Gating MCP is designed to work alongside other MCP servers:
+Hive MCP Gateway is designed to work alongside other MCP servers:
 
-1. **Initial Setup**: Only Tool Gating is loaded in Claude Desktop
-2. **Dynamic Discovery**: Use Tool Gating to find relevant tools across all registered servers
+1. **Initial Setup**: Only Hive MCP Gateway is loaded in your MCP client
+2. **Dynamic Discovery**: Use Hive MCP Gateway to find relevant tools across all registered servers
 3. **Selective Loading**: Provision only the tools you need for the current task
 4. **Context Optimization**: Stay within token budgets while maximizing capability
 
@@ -241,4 +260,4 @@ Tool Gating MCP is designed to work alongside other MCP servers:
 3. Use `provision_tools` → Loads only these 2 tools (400 tokens vs 8000 for all)
 4. Execute tasks with optimal context
 
-This creates a dynamic, efficient tool ecosystem that adapts to your current task!
+This creates a dynamic, efficient tool ecosystem that adapts to your current task across any MCP-compatible client!

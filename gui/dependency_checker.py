@@ -44,8 +44,8 @@ class DependencyChecker(QObject):
                     # Current working directory and common project locations
                     Path.cwd(),
                     Path.cwd().parent,
-                    Path.home() / "Documents/Scripting Projects/tool-gating-mcp",
-                    Path("/Users/bbrenner/Documents/Scripting Projects/tool-gating-mcp"),
+                    Path.home() / "Documents/Scripting Projects/hive-mcp-gateway",
+                    Path("/Users/bbrenner/Documents/Scripting Projects/hive-mcp-gateway"),
                     # Standard installation paths
                     Path.home() / ".local/bin",
                     Path("/usr/local/bin"),
@@ -57,7 +57,7 @@ class DependencyChecker(QObject):
                     Path.home() / ".cargo/bin"
                 ],
                 "binary_name": "mcp-proxy",
-                "description": "MCP proxy service for Claude Desktop integration"
+                "description": "MCP proxy service for MCP client integration (Claude Desktop, Claude Code, etc.)"
             },
             "claude-desktop": {
                 "app_paths": [
@@ -69,7 +69,7 @@ class DependencyChecker(QObject):
                 ],
                 "config_path": Path.home() / "Library/Application Support/Claude/claude_desktop_config.json",
                 "process_names": ["Claude", "claude", "Claude Desktop"],
-                "description": "Claude Desktop application"
+                "description": "Claude Desktop application (one of many MCP-compatible clients)"
             },
             "node": {
                 "binary_name": "node",

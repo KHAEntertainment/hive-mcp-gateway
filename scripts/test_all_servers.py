@@ -43,7 +43,7 @@ def test_server(server_name):
     return True
 
 def main():
-    print_header("Tool Gating MCP - All Servers Test")
+    print_header("Hive MCP Gateway - All Servers Test")
     
     # First check health
     try:

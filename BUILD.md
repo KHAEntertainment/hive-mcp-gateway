@@ -98,7 +98,7 @@ brew install create-dmg
 
 ## Development vs Production
 
-- **Development**: Use `uv run python src/tool_gating_mcp/main.py` (port 8000)
+- **Development**: Use `uv run python src/hive_mcp_gateway/main.py` (port 8001)
 - **Production**: Use the app bundle (port 8001)
 
 This allows both versions to run simultaneously for testing and migration.

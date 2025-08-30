@@ -25,7 +25,7 @@ console = Console()
 
 
 async def get_all_tools() -> List[Dict[str, Any]]:
-    """Fetch all tools from Tool Gating server."""
+    """Fetch all tools from Hive MCP Gateway server."""
     async with httpx.AsyncClient() as client:
         # Discover all tools (empty query gets everything)
         response = await client.post(
@@ -79,7 +79,7 @@ def analyze_tool_names(tools: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, 
         server = tool.get("server", "unknown")
         
         # Check different name formats
-        mcp_tool_name = f"mcp__tool-gating__{name}"
+        mcp_tool_name = f"mcp__hive-gateway__{name}"
         
         tool_info = {
             "tool_id": tool_id,
@@ -104,9 +104,9 @@ def create_test_mcp_config() -> Path:
     """Create a minimal MCP configuration for testing."""
     config = {
         "mcpServers": {
-            "tool-gating": {
+            "hive-gateway": {
                 "command": "mcp-proxy",
-                "args": ["http://localhost:8000/mcp"]
+                "args": ["http://localhost:8001/mcp"]
             }
         }
     }
@@ -117,7 +117,7 @@ def create_test_mcp_config() -> Path:
 
 
 def test_with_claude_headless(config_path: Path, model: str = "claude-3-5-sonnet-20241022"):
-    """Test Tool Gating with Claude in headless mode."""
+    """Test Hive MCP Gateway with Claude Code in headless mode."""
     # Set environment variables for Claude
     env = os.environ.copy()
     env["ANTHROPIC_MODEL"] = model
@@ -162,16 +162,16 @@ def test_with_claude_headless(config_path: Path, model: str = "claude-3-5-sonnet
 
 async def main():
     """Main debugging function."""
-    console.print("[bold green]MCP Tool Name Debugging Script[/bold green]\n")
+    console.print("[bold green]MCP Tool Name Debugging Script for Hive MCP Gateway[/bold green]\n")
     
     # 1. Check server health
     try:
         async with httpx.AsyncClient() as client:
-            health = await client.get("http://localhost:8000/health")
+            health = await client.get("http://localhost:8001/health")
             console.print(f"✅ Server status: {health.json()['status']}")
     except Exception as e:
         console.print(f"[red]❌ Server not running:[/red] {e}")
-        console.print("[yellow]Start server with: tool-gating-mcp[/yellow]")
+        console.print("[yellow]Start server with: hive-mcp-gateway[/yellow]")
         return
     
     # 2. Get all tools
@@ -240,13 +240,13 @@ async def main():
     if analysis["too_long"]:
         console.print("\n[bold yellow]Suggested Fixes:[/bold yellow]")
         console.print("1. Shorten tool names in the MCP server implementations")
-        console.print("2. Update the tool name format in Tool Gating")
+        console.print("2. Update the tool name format in Hive MCP Gateway")
         console.print("3. Use shorter prefixes for MCP tool names")
         
         console.print("\n[cyan]Example fix in api/proxy.py:[/cyan]")
         console.print("""
-# Instead of: mcp__tool-gating__very_long_tool_name_from_server
-# Use:        mcp__tg__tool_name
+# Instead of: mcp__hive-gateway__very_long_tool_name_from_server
+# Use:        mcp__hg__tool_name
 
 # Or modify the tool exposure in main.py to use shorter names
 """)

@@ -17,7 +17,7 @@ sys.path.insert(0, str(project_root))
 
 def start_server():
     """Start the server in a subprocess"""
-    print("Starting Tool Gating MCP server...")
+    print("Starting Hive MCP Gateway server...")
     env = os.environ.copy()
     env['PYTHONPATH'] = str(project_root)
     

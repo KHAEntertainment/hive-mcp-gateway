@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Tool Gating MCP tools directly via HTTP API
+Test Hive MCP Gateway tools directly via HTTP API
 """
 
 import httpx
@@ -11,11 +11,11 @@ from rich.json import JSON
 import json
 
 console = Console()
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8001"
 
 
 async def test_mcp_tools():
-    """Test the Tool Gating MCP tools"""
+    """Test the Hive MCP Gateway tools"""
     
     async with httpx.AsyncClient() as client:
         # 1. List MCP servers

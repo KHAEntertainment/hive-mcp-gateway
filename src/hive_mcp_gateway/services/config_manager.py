@@ -276,8 +276,8 @@ class ConfigManager:
         
         server_config_data = mcp_servers[server_name]
         
-        # Convert mcp-proxy format to tool-gating-mcp format
-        config = self._convert_mcp_proxy_config(server_config_data)
+        # Convert mcp-proxy format to Hive MCP Gateway format
+        config = self._convert_mcp_proxy_to_hive_format(server_config_data)
         
         # Check if server already exists
         current_config = self.load_config()
@@ -326,26 +326,27 @@ class ConfigManager:
                 errors=[str(err) for err in e.errors()]
             )
     
-    def _convert_mcp_proxy_config(self, mcp_proxy_config: Dict[str, Any]) -> BackendServerConfig:
-        """Convert mcp-proxy server configuration to tool-gating-mcp format."""
+    def _convert_mcp_proxy_to_hive_format(self, server_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert mcp-proxy server configuration to Hive MCP Gateway format."""
         # Extract basic fields
         config_data = {
             "type": "stdio",  # mcp-proxy typically uses stdio
-            "command": mcp_proxy_config.get("command"),
-            "args": mcp_proxy_config.get("args", []),
-            "env": mcp_proxy_config.get("env", {}),
+            "command": server_config.get("command"),
+            "args": server_config.get("args", []),
+            "env": server_config.get("env", {}),
             "enabled": True
         }
         
         # Handle URL-based configs
-        if "url" in mcp_proxy_config:
+        if "url" in server_config:
             config_data["type"] = "sse"  # Assume SSE for URL-based configs
-            config_data["url"] = mcp_proxy_config["url"]
+            config_data["url"] = server_config["url"]
             config_data.pop("command", None)
             config_data.pop("args", None)
         
         # Handle options
-        if "options" in mcp_proxy_config:
-            config_data["options"] = mcp_proxy_config["options"]
+        if "options" in server_config:
+            config_data["options"] = server_config["options"]
         
-        return BackendServerConfig(**config_data)
+        return config_data
+    

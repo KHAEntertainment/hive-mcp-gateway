@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent context bloat. It acts as a single MCP server that Claude Desktop connects to, while internally managing connections to multiple backend MCP servers. The system discovers, ranks, and provisions only the most relevant tools for each task.
+Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent context bloat. It acts as a single MCP server that any MCP-compatible client connects to, while internally managing connections to multiple backend MCP servers. The system discovers, ranks, and provisions only the most relevant tools for each task.
 
 ## Core Responsibilities
 
@@ -12,7 +12,7 @@ Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent con
 2. **Intelligent Selection**: Choose optimal tools within token budgets
 3. **Proxy Execution**: Route tool calls to appropriate backend MCP servers
 4. **Connection Management**: Maintain persistent connections to multiple MCP servers
-5. **Native MCP Server**: Expose all functionality as MCP tools for Claude Desktop
+5. **Native MCP Server**: Expose all functionality as MCP tools for any MCP-compatible client
 
 ### What This System Does NOT Do ❌
 
@@ -24,9 +24,11 @@ Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent con
 
 ```
 ┌─────────────────┐
-│ Claude Desktop  │
-│   (or other     │
-│  MCP clients)   │
+│  Any MCP Client │
+│ (Claude Desktop,│
+│  Claude Code,   │
+│   Gemini CLI,   │
+│     etc.)       │
 └────────┬────────┘
          │ MCP Protocol (SSE/stdio)
          │
@@ -139,7 +141,7 @@ Parse Server Name → Route to Backend → Execute → Return Result
 
 ## Token Optimization
 
-### Before Tool Gating
+### Before Hive MCP Gateway
 - All tools included: ~10,000 tokens
 - Limited context for conversation
 - Higher costs and slower responses
@@ -151,7 +153,7 @@ Parse Server Name → Route to Backend → Execute → Return Result
 
 ## Integration Guide
 
-### For Claude Desktop Users
+### For Any MCP-Compatible Client (Including Claude Code, Claude Desktop, Gemini CLI, etc.)
 
 1. **Configure Hive MCP Gateway Only**
    ```json
@@ -173,6 +175,15 @@ Parse Server Name → Route to Backend → Execute → Return Result
 3. **Execute Through Gateway**
    - All tool execution automatically routes through Hive MCP Gateway
    - No need to know which backend server has which tool
+
+### Special Benefits for Claude Code
+
+Claude Code in particular suffers from major context window bloat as you add numerous MCPs to its configuration. With Hive MCP Gateway, you can:
+
+- **Reduce Context Bloat**: Load only 3-5 tools instead of 50+ tools
+- **Maintain Optimal Performance**: Keep more context space for your actual code
+- **Dynamic Tool Loading**: Load different tools for different coding tasks
+- **Faster Startup**: Connect to one endpoint instead of configuring dozens
 
 ### For Developers Adding New MCP Servers
 

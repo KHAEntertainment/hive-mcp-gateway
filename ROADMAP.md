@@ -1,6 +1,6 @@
 # Hive MCP Gateway - Roadmap
 
-## Reccomendations
+## Recommendations
 ⏺ 🚀 Recommendations for Hive MCP Gateway
 
   1. Protocol Completeness Improvements
@@ -38,7 +38,7 @@
 
 ## Current Status (v0.2.0) ✅
 
-- [x] Core tool gating functionality with semantic search
+- [x] Core Hive MCP Gateway functionality with semantic search
 - [x] Cross-server tool integration
 - [x] Token budget management
 - [x] AI-assisted MCP server registration
@@ -92,7 +92,7 @@
 - [ ] Add Smithery server metadata caching
 
 ### 3.2 Automatic Discovery
-- [ ] Browse Smithery catalog directly from Tool Gating
+- [ ] Browse Smithery catalog directly from Hive MCP Gateway
 - [ ] Search Smithery servers by capability
 - [ ] One-click installation of Smithery servers
 - [ ] Automatic dependency resolution
@@ -105,13 +105,13 @@
 Example workflow:
 ```bash
 # Import servers from Smithery
-tool-gating-mcp import-smithery --category "development"
+hive-mcp-gateway import-smithery --category "development"
 
 # Search Smithery catalog
-tool-gating-mcp search-smithery "github api"
+hive-mcp-gateway search-smithery "github api"
 
 # Install specific server
-tool-gating-mcp add-smithery "mcp-server-github"
+hive-mcp-gateway add-smithery "mcp-server-github"
 ```
 
 ## Phase 4: Advanced Features (v0.6.0) 🚀

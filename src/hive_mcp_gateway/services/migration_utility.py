@@ -17,7 +17,7 @@ class MigrationUtility:
     def __init__(self, config_manager: ConfigManager):
         """Initialize migration utility with config manager."""
         self.config_manager = config_manager
-        self.existing_installation_path = Path("/Users/bbrenner/tool-gating-mcp")
+        self.existing_installation_path = Path("/Users/bbrenner/hive-mcp-gateway")
     
     def discover_existing_installation(self) -> Optional[Path]:
         """Discover existing Hive MCP Gateway installation."""

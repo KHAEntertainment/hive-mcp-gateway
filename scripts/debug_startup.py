@@ -38,34 +38,32 @@ for cmd in commands:
 
 # Check if the Tool Gating server is running
 print("\nChecking Tool Gating server:")
-import httpx
+import requests
 
 async def check_server():
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get("http://localhost:8000/health")
-            if response.status_code == 200:
-                print("✅ Tool Gating server is running")
+    response = requests.get("http://localhost:8001/health")
+    if response.status_code == 200:
+        print("✅ Tool Gating server is running")
                 
-                # Check how many tools are discovered
-                response = await client.post(
-                    "http://localhost:8000/api/tools/discover",
-                    json={"query": "all tools", "limit": 100}
-                )
-                if response.status_code == 200:
-                    tools = response.json()["tools"]
-                    print(f"   Found {len(tools)} tools in the system")
-                    if len(tools) == 0:
-                        print("   ⚠️  No tools discovered!")
-                        print("   This means either:")
-                        print("   1. MCP servers couldn't be connected at startup")
-                        print("   2. No tools have been manually registered")
-                else:
-                    print(f"   Error checking tools: {response.status_code}")
-        except Exception as e:
-            print(f"❌ Tool Gating server is NOT running")
-            print(f"   Error: {e}")
-            print(f"   Start with: tool-gating-mcp")
+        # Check how many tools are discovered
+        response = await client.post(
+            "http://localhost:8001/api/tools/discover",
+            json={"query": "all tools", "limit": 100}
+        )
+        if response.status_code == 200:
+            tools = response.json()["tools"]
+            print(f"   Found {len(tools)} tools in the system")
+            if len(tools) == 0:
+                print("   ⚠️  No tools discovered!")
+                print("   This means either:")
+                print("   1. MCP servers couldn't be connected at startup")
+                print("   2. No tools have been manually registered")
+        else:
+            print(f"   Error checking tools: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Tool Gating server is NOT running")
+        print(f"   Error: {e}")
+        print(f"   Start with: hive-mcp-gateway")
 
 asyncio.run(check_server())
 

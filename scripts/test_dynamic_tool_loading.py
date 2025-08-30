@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Test dynamic tool loading with Claude Code.
+Test dynamic tool loading with any MCP-compatible client.
 
-This script demonstrates that Claude can:
-1. Start with Tool Gating MCP only
+This script demonstrates that MCP clients can:
+1. Start with Hive MCP Gateway only
 2. Discover tools from other servers
 3. Dynamically load and execute those tools
+
+Works with Claude Code, Claude Desktop, Gemini CLI, and other MCP-compatible clients.
 """
 
 import json
@@ -21,12 +23,12 @@ console = Console()
 
 
 def create_mcp_config_minimal() -> Path:
-    """Create MCP config with ONLY Tool Gating (no other servers)."""
+    """Create MCP config with ONLY Hive MCP Gateway (no other servers)."""
     config = {
         "mcpServers": {
-            "tool-gating": {
+            "hive-gateway": {
                 "command": "mcp-proxy",
-                "args": ["http://localhost:8000/mcp"],
+                "args": ["http://localhost:8001/mcp"],
                 "env": {}
             }
         }
@@ -39,12 +41,12 @@ def create_mcp_config_minimal() -> Path:
 
 
 def create_mcp_config_with_puppeteer() -> Path:
-    """Create MCP config with Tool Gating AND Puppeteer."""
+    """Create MCP config with Hive MCP Gateway AND Puppeteer."""
     config = {
         "mcpServers": {
-            "tool-gating": {
+            "hive-gateway": {
                 "command": "mcp-proxy",
-                "args": ["http://localhost:8000/mcp"],
+                "args": ["http://localhost:8001/mcp"],
                 "env": {}
             },
             "puppeteer": {
@@ -124,11 +126,11 @@ def main():
     console.print(stdout2 or "[red]No output[/red]")
     
     # Step 2: Use Tool Gating to discover Puppeteer tools
-    console.print("\n[bold cyan]Step 2: Using Tool Gating to discover browser/screenshot tools[/bold cyan]")
+    console.print("\n[bold cyan]Step 2: Using Hive MCP Gateway to discover browser/screenshot tools[/bold cyan]")
     stdout3, stderr3 = run_claude_code(
-        "Use the tool-gating discover_tools to find tools for 'browser automation screenshot'. List what you find.",
+        "Use the hive-gateway discover_tools to find tools for 'browser automation screenshot'. List what you find.",
         minimal_config,
-        allowed_tools="mcp__tool-gating__discover_tools"
+        allowed_tools="mcp__hive-gateway__discover_tools"
     )
     console.print("[green]Output:[/green]")
     console.print(stdout3 or "[red]No output[/red]")

@@ -4,6 +4,8 @@ Demo script for the Hive MCP Gateway System.
 
 This demonstrates how the system intelligently selects and provides tools
 to LLMs based on context, reducing token usage while maintaining functionality.
+Works with any MCP-compatible client including Claude Desktop, Claude Code,
+Gemini CLI, Kiro, and other agentic coding systems.
 """
 
 import asyncio
@@ -17,7 +19,7 @@ console = Console()
 
 async def run_demo():
     """Run the complete demo."""
-    async with httpx.AsyncClient(base_url="http://localhost:8000") as client:
+    async with httpx.AsyncClient(base_url="http://localhost:8001") as client:
         console.print("\n[bold cyan]Hive MCP Gateway System Demo[/bold cyan]\n")
 
         # Scenario 1: Math Query
@@ -139,14 +141,14 @@ async def demo_token_budget(client):
 if __name__ == "__main__":
     console.print("[bold green]Starting Hive MCP Gateway Demo...[/bold green]")
     console.print(
-        "\n[yellow]Make sure the server is running with:[/yellow] tool-gating-mcp\n"
+        "\n[yellow]Make sure the server is running with:[/yellow] hive-mcp-gateway\n"
     )
 
     try:
         asyncio.run(run_demo())
     except httpx.ConnectError:
         console.print("[bold red]ERROR:[/bold red] Could not connect to server!")
-        console.print("Start the server with: [cyan]tool-gating-mcp[/cyan]")
+        console.print("Start the server with: [cyan]hive-mcp-gateway[/cyan]")
     except KeyboardInterrupt:
         console.print("\n[yellow]Demo interrupted by user[/yellow]")
     except Exception as e:

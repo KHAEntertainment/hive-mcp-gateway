@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Example: How to register a new MCP server with the Tool Gating system
+Example: How to register a new MCP server with the Hive MCP Gateway system
 
 This example shows how to add a hypothetical Slack MCP server.
 Adapt this pattern for your own MCP servers.
+Works with any MCP-compatible client including Claude Desktop, Claude Code,
+Gemini CLI, Kiro, and other agentic coding systems.
 """
 
 import asyncio
@@ -17,7 +19,7 @@ from rich.table import Table
 console = Console()
 
 # Configuration
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://localhost:8001"
 
 
 def estimate_tool_tokens(tool: dict[str, Any]) -> int:
@@ -173,7 +175,7 @@ def create_slack_tools() -> list[dict[str, Any]]:
 
 
 async def register_tools(tools: list[dict[str, Any]]) -> None:
-    """Register tools with the Tool Gating system"""
+    """Register tools with the Hive MCP Gateway system"""
 
     console.print("\n[bold blue]Registering Slack MCP Tools[/bold blue]\n")
 
@@ -300,7 +302,7 @@ async def main():
     """Main function to register and test Slack tools"""
 
     console.print("[bold green]Slack MCP Server Integration Example[/bold green]")
-    console.print("This demonstrates how to add a new MCP server to Tool Gating\n")
+    console.print("This demonstrates how to add a new MCP server to Hive MCP Gateway\n")
 
     # Create Slack tools
     tools = create_slack_tools()
@@ -321,8 +323,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Make sure the Tool Gating server is running
+    # Make sure the Hive MCP Gateway server is running
     console.print(
-        "[dim]Make sure the Tool Gating server is running: tool-gating-mcp[/dim]\n"
+        "[dim]Make sure the Hive MCP Gateway server is running: hive-mcp-gateway[/dim]\n"
     )
     asyncio.run(main())

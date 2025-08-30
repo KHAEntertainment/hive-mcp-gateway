@@ -156,7 +156,7 @@ backendMcpServers:
 To migrate from the legacy JSON format to the new YAML format with enhanced features:
 
 ```bash
-python scripts/migrate_config_to_yaml.py tool_gating_config.json config/tool_gating_config.yaml --backup
+python scripts/migrate_config_to_yaml.py hive_mcp_gateway_config.json config/hive_mcp_gateway_config.yaml --backup
 ```
 
 This will:
@@ -220,7 +220,7 @@ Linux support is in active development. The application will be available as:
 
 2. Create a configuration file (YAML or JSON):
    ```bash
-   cp config/tool_gating_config.yaml.example config/tool_gating_config.yaml
+   cp config/hive_mcp_gateway_config.yaml.example config/hive_mcp_gateway_config.yaml
    ```
 
 3. Run the server:
@@ -244,6 +244,25 @@ Hive MCP Gateway includes comprehensive error handling with:
 - Circuit breaker pattern to prevent cascading failures
 - Detailed error logging and reporting
 - Graceful degradation when servers are unavailable
+
+## Universal MCP Compatibility
+
+Hive MCP Gateway is designed to work with **any MCP-compatible solution**, not just Claude Desktop. It serves as a universal proxy layer that can connect to any Model Context Protocol implementation.
+
+### Key Benefits for All MCP Clients:
+- **Context Optimization**: Reduces token usage by 50-90% by loading only relevant tools
+- **Cross-Server Intelligence**: Seamlessly combines tools from multiple MCP servers
+- **Dynamic Discovery**: Find tools using natural language queries
+- **Flexible Integration**: Works with stdio, SSE, and HTTP-based MCP servers
+
+### Special Note for Claude Code:
+Claude Code in particular suffers from major context window bloat as you add numerous MCPs to its configuration. With Hive MCP Gateway, you can:
+- Connect to a single endpoint instead of configuring dozens of individual MCP servers
+- Dynamically load only the tools needed for each coding task
+- Maintain optimal context space for your actual code and conversation
+- Reduce startup time and memory usage
+
+This makes Hive MCP Gateway especially valuable for Claude Code users who work with multiple MCP tools simultaneously.
 
 ## Contributing
 

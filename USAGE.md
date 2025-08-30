@@ -2,12 +2,12 @@
 
 ## Overview
 
-Hive MCP Gateway is an intelligent gateway that sits between Claude Desktop (or other MCP clients) and multiple MCP servers. It prevents context bloat by dynamically discovering and provisioning only the most relevant tools for each task.
+Hive MCP Gateway is an intelligent gateway that sits between any MCP-compatible client and multiple MCP servers. It prevents context bloat by dynamically discovering and provisioning only the most relevant tools for each task.
 
 ## How It Works
 
-Instead of configuring 10+ MCP servers in Claude Desktop (100+ tools), you configure only Hive MCP Gateway:
-1. **Single Connection**: Claude connects only to Hive MCP Gateway
+Instead of configuring 10+ MCP servers in your MCP client (100+ tools), you configure only Hive MCP Gateway:
+1. **Single Connection**: Your MCP client connects only to Hive MCP Gateway
 2. **Backend Management**: Hive MCP Gateway connects to all your MCP servers
 3. **Smart Discovery**: Find tools across all servers with natural language
 4. **Dynamic Provisioning**: Load only relevant tools within token budgets
@@ -140,14 +140,32 @@ The system automatically:
 - Excludes redundant or low-relevance tools
 - Maintains diversity across different servers
 
-## Setup for Claude Desktop
+## Universal MCP Client Support
+
+Hive MCP Gateway works with **any MCP-compatible client**, including but not limited to:
+- Claude Desktop
+- Claude Code
+- Gemini CLI
+- Kiro
+- Other agentic coding systems
+
+### Special Benefits for Claude Code
+
+Claude Code in particular suffers from major context window bloat as you add numerous MCPs to its configuration. With Hive MCP Gateway, you can:
+
+1. **Reduce Context Bloat**: Instead of loading 50+ tools that consume thousands of tokens, load only the 3-5 tools you actually need
+2. **Improve Performance**: Faster startup times and more responsive interactions
+3. **Better Resource Management**: Less memory usage and reduced computational overhead
+4. **Dynamic Tool Loading**: Load different tools for different coding tasks without reconfiguring your client
+
+### Setup for Claude Code
 
 1. **Start Hive MCP Gateway**:
    ```bash
    hive-mcp-gateway
    ```
 
-2. **Configure Claude Desktop** (only once):
+2. **Configure Claude Code** (only once):
    ```json
    {
      "mcpServers": {
@@ -169,4 +187,22 @@ The system automatically:
    - No need to know which backend server has which tool
    - Context stays clean with only provisioned tools
 
-This allows you to work with virtually unlimited MCP tools while maintaining peak efficiency!
+### Setup for Other MCP Clients
+
+The same principles apply to other MCP-compatible clients:
+
+1. **Start Hive MCP Gateway**:
+   ```bash
+   hive-mcp-gateway
+   ```
+
+2. **Configure Your MCP Client** to connect to:
+   ```
+   http://localhost:8001/mcp
+   ```
+
+3. **Use Natural Language Discovery** to find the tools you need
+
+4. **Provision Only Relevant Tools** to maintain optimal context usage
+
+This allows you to work with virtually unlimited MCP tools while maintaining peak efficiency across any MCP-compatible client!

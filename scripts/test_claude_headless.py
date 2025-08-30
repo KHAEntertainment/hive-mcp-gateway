@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Test Tool Gating MCP with Claude Code in headless mode.
+Test Hive MCP Gateway with any MCP-compatible client in headless mode.
 
 This script demonstrates how to use Claude Code programmatically 
-to test our Tool Gating MCP server.
+to test our Hive MCP Gateway server.
+Works with Claude Code, Claude Desktop, Gemini CLI, and other MCP-compatible clients.
 """
 
 import json
@@ -17,23 +18,23 @@ from rich.console import Console
 console = Console()
 
 
-def create_mcp_config(server_url: str = "http://localhost:8000/mcp") -> Path:
-    """Create MCP configuration file for Claude Code."""
+def create_mcp_config(server_url: str = "http://localhost:8001/mcp") -> Path:
+    """Create MCP configuration file for any MCP-compatible client."""
     config = {
-        "tool-gating": {
+        "hive-gateway": {
             "command": "mcp-proxy",
             "args": [server_url],
             "env": {}
         }
     }
     
-    # Write to temporary file
+    // Write to temporary file
     config_file = Path(tempfile.mktemp(suffix=".json"))
     config_file.write_text(json.dumps(config, indent=2))
     return config_file
 
 
-def run_claude_code(prompt: str, mcp_config: Path, allowed_tools: str = "mcp__tool-gating__*"):
+def run_claude_code(prompt: str, mcp_config: Path, allowed_tools: str = "mcp__hive-gateway__*"):
     """Run Claude Code in non-interactive mode with MCP."""
     cmd = [
         "claude",
@@ -54,7 +55,7 @@ def run_claude_code(prompt: str, mcp_config: Path, allowed_tools: str = "mcp__to
             check=True
         )
         
-        # Parse JSON output
+        // Parse JSON output
         output = json.loads(result.stdout)
         return output
         
@@ -70,26 +71,26 @@ def run_claude_code(prompt: str, mcp_config: Path, allowed_tools: str = "mcp__to
 
 async def test_tool_discovery():
     """Test the complete tool discovery workflow."""
-    console.print("\n[bold green]Testing Tool Gating MCP with Claude Code[/bold green]\n")
+    console.print("\n[bold green]Testing Hive MCP Gateway with Claude Code[/bold green]\n")
     
-    # 1. Check if server is running
+    // 1. Check if server is running
     async with httpx.AsyncClient() as client:
         try:
-            health = await client.get("http://localhost:8000/health")
-            console.print(f"✅ Tool Gating server is {health.json()['status']}")
+            health = await client.get("http://localhost:8001/health")
+            console.print(f"✅ Hive MCP Gateway server is {health.json()['status']}")
         except Exception as e:
             console.print(f"[red]❌ Server not running:[/red] {e}")
-            console.print("[yellow]Please start the server with: tool-gating-mcp[/yellow]")
+            console.print("[yellow]Please start the server with: hive-mcp-gateway[/yellow]")
             return
     
-    # 2. Create MCP configuration
+    // 2. Create MCP configuration
     mcp_config = create_mcp_config()
     console.print(f"✅ Created MCP config at: {mcp_config}")
     
-    # 3. Test 1: Discover tools
+    // 3. Test 1: Discover tools
     console.print("\n[cyan]Test 1: Discovering tools for web search[/cyan]")
     result1 = run_claude_code(
-        prompt="Use the tool-gating MCP server to discover tools for web search. List what you find.",
+        prompt="Use the hive-gateway MCP server to discover tools for web search. List what you find.",
         mcp_config=mcp_config
     )
     
@@ -97,10 +98,10 @@ async def test_tool_discovery():
         console.print("[green]✅ Test 1 passed[/green]")
         console.print(f"Result: {json.dumps(result1, indent=2)}")
     
-    # 4. Test 2: Provision tools
+    // 4. Test 2: Provision tools
     console.print("\n[cyan]Test 2: Provisioning specific tools[/cyan]")
     result2 = run_claude_code(
-        prompt="Use tool-gating to provision the puppeteer screenshot tool if available.",
+        prompt="Use hive-gateway to provision the puppeteer screenshot tool if available.",
         mcp_config=mcp_config
     )
     
@@ -108,10 +109,10 @@ async def test_tool_discovery():
         console.print("[green]✅ Test 2 passed[/green]")
         console.print(f"Result: {json.dumps(result2, indent=2)}")
     
-    # 5. Test 3: List MCP servers
+    // 5. Test 3: List MCP servers
     console.print("\n[cyan]Test 3: List registered MCP servers[/cyan]")
     result3 = run_claude_code(
-        prompt="Use tool-gating to list all registered MCP servers.",
+        prompt="Use hive-gateway to list all registered MCP servers.",
         mcp_config=mcp_config
     )
     
@@ -119,7 +120,7 @@ async def test_tool_discovery():
         console.print("[green]✅ Test 3 passed[/green]")
         console.print(f"Result: {json.dumps(result3, indent=2)}")
     
-    # Cleanup
+    // Cleanup
     mcp_config.unlink()
     console.print("\n[green]✅ All tests completed![/green]")
 

@@ -151,10 +151,11 @@ from fastapi_mcp import FastApiMCP
 # This prevents context bloat by only exposing essential tools
 mcp_server = FastApiMCP(
     app,
-    name="tool-gating",
+    name="hive-gateway",
     description=(
         "Intelligently manage MCP tools to prevent context bloat. "
-        "Discover and provision only the most relevant tools for each task."
+        "Discover and provision only the most relevant tools for each task. "
+        "Works with any MCP-compatible client including Claude Desktop, Claude Code, Gemini CLI, etc."
     ),
     include_operations=["add_server", "discover_tools", "execute_tool", "register_tool"]
 )

@@ -1,10 +1,10 @@
 # Adding New MCP Servers
 
-This guide explains how to integrate new MCP servers with the Tool Gating system.
+This guide explains how to integrate new MCP servers with the Hive MCP Gateway.
 
 ## Overview
 
-The Tool Gating system acts as a registry and intelligent filter for tools from multiple MCP servers. Adding a new server involves:
+The Hive MCP Gateway acts as a registry and intelligent filter for tools from multiple MCP servers. Adding a new server involves:
 1. Discovering the server's available tools
 2. Registering them with appropriate metadata
 3. Testing the integration
@@ -27,7 +27,7 @@ In a production system, you would connect to the MCP server and call its `tools/
 Each tool from your MCP server needs to be registered with the following information:
 
 ```bash
-POST http://localhost:8000/api/tools/register
+POST http://localhost:8001/api/tools/register
 Content-Type: application/json
 
 {
@@ -116,12 +116,12 @@ async def register_slack_tools():
     
     async with httpx.AsyncClient() as client:
         # Clear existing tools if needed
-        await client.delete("http://localhost:8000/api/tools/clear")
+        await client.delete("http://localhost:8001/api/tools/clear")
         
         # Register each tool
         for tool in slack_tools:
             response = await client.post(
-                "http://localhost:8000/api/tools/register",
+                "http://localhost:8001/api/tools/register",
                 json=tool
             )
             print(f"Registered {tool['name']}: {response.status_code}")
@@ -169,21 +169,21 @@ After registering your tools, test the integration:
 ```python
 # Test 1: Discover your tools
 response = await client.post(
-    "http://localhost:8000/api/tools/discover",
+    "http://localhost:8001/api/tools/discover",
     json={"query": "send slack message", "limit": 5}
 )
 # Should find your slack_send_message tool with high score
 
 # Test 2: Cross-server search
 response = await client.post(
-    "http://localhost:8000/api/tools/discover",
+    "http://localhost:8001/api/tools/discover",
     json={"query": "search messages in slack and save to file", "limit": 5}
 )
 # Should find both Slack search and file write tools
 
 # Test 3: Tag filtering
 response = await client.post(
-    "http://localhost:8000/api/tools/discover",
+    "http://localhost:8001/api/tools/discover",
     json={"query": "communication", "tags": ["slack"], "limit": 5}
 )
 # Should prioritize Slack tools
@@ -198,122 +198,4 @@ class MCPServerIntegration:
     """Automatic MCP server integration"""
     
     async def discover_and_register(self, mcp_server_url: str, server_name: str):
-        """Connect to MCP server and register all its tools"""
-        
-        # 1. Connect to MCP server
-        async with MCPClient(mcp_server_url) as mcp:
-            # 2. Get tool list
-            tools_response = await mcp.request("tools/list", {})
-            
-            # 3. Register each tool
-            for mcp_tool in tools_response["tools"]:
-                tool = {
-                    "id": f"{server_name}_{mcp_tool['name']}",
-                    "name": mcp_tool["name"],
-                    "description": mcp_tool["description"],
-                    "server": server_name,
-                    "parameters": mcp_tool["inputSchema"],
-                    "estimated_tokens": self._estimate_tokens(mcp_tool),
-                    "tags": self._extract_tags(mcp_tool)
-                }
-                
-                await self.register_tool(tool)
 ```
-
-## Example: Adding a Database MCP Server
-
-```python
-# register_database_tools.py
-
-database_tools = [
-    {
-        "id": "postgres_query",
-        "name": "query",
-        "description": "Execute a SELECT query on PostgreSQL database",
-        "tags": ["database", "postgres", "query", "read"],
-        "estimated_tokens": 200,
-        "server": "postgres",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "SQL SELECT query"
-                },
-                "params": {
-                    "type": "array",
-                    "description": "Query parameters",
-                    "items": {"type": "string"}
-                }
-            },
-            "required": ["query"]
-        }
-    },
-    {
-        "id": "postgres_insert",
-        "name": "insert",
-        "description": "Insert data into PostgreSQL table",
-        "tags": ["database", "postgres", "insert", "write"],
-        "estimated_tokens": 180,
-        "server": "postgres",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "table": {"type": "string"},
-                "data": {"type": "object"}
-            },
-            "required": ["table", "data"]
-        }
-    }
-]
-```
-
-## Benefits of Proper Integration
-
-When you properly integrate your MCP server:
-
-1. **Selective Access**: LLMs get only the database tools they need (e.g., just `query` for read-only tasks)
-2. **Cross-Server Workflows**: "Query database and send results to Slack" finds tools from both servers
-3. **Token Efficiency**: Instead of 10 database tools, provision just the 1-2 needed
-4. **Better LLM Performance**: Less context pollution means more accurate tool selection
-
-## Updating Your mcp-servers.json
-
-Add your server configuration to `mcp-servers.json`:
-
-```json
-{
-  "existing-servers": "...",
-  "slack": {
-    "command": "npx",
-    "args": ["@your-org/slack-mcp-server"],
-    "env": {
-      "SLACK_TOKEN": "xoxb-your-token"
-    }
-  },
-  "postgres": {
-    "command": "postgres-mcp",
-    "args": ["--connection-string", "postgresql://..."]
-  }
-}
-```
-
-## Monitoring and Maintenance
-
-After adding a server:
-
-1. **Monitor Usage**: Track which tools are most frequently discovered/used
-2. **Refine Tags**: Update tags based on actual usage patterns
-3. **Adjust Tokens**: Fine-tune token estimates based on real usage
-4. **Update Descriptions**: Improve descriptions for better semantic matching
-
-## Quick Checklist
-
-- [ ] Identify all tools from your MCP server
-- [ ] Create unique IDs using `servername_toolname` pattern
-- [ ] Write clear descriptions focusing on what the tool does
-- [ ] Choose appropriate tags for categorization
-- [ ] Estimate token counts realistically
-- [ ] Test discovery with relevant queries
-- [ ] Verify cross-server tool selection works
-- [ ] Document any server-specific setup requirements
