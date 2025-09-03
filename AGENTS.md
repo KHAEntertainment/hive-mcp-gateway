@@ -13,6 +13,14 @@
 - `docs/`, `examples/`: Additional guides and samples
 - Integrated MCP: HTTP MCP endpoint mounted at `/mcp` (no external mcp-proxy required)
 
+## Documentation Location
+- All repository documentation lives under `docs/` to keep the root clean.
+- Root keeps only core entry docs: `README.md`, `AGENTS.md`, and `CLAUDE.md`.
+- Recently relocated files (now under `docs/`):
+  - `ARCHITECTURE.md`, `BUILD.md`, `DEPLOYMENT.md`, `ROADMAP.md`, `TASKS.md`, `USAGE.md`, `CLAUDE_INTEGRATION.md`, `tool-gating-mcp-troubleshooting-notes.md`.
+- Docker docs live under `docker/` (headless usage). GUI is native-only (see README and docs).
+- When adding new docs, place them in `docs/` and link from `README.md` or `AGENTS.md` as needed.
+
 ## Build, Test, and Development Commands
 - Install deps: `uv sync`
 - Run API (+ HTTP MCP at `/mcp`): `uv run hive-mcp-gateway` or `uv run python -m hive_mcp_gateway.main`
