@@ -124,26 +124,29 @@ async def initiate_oauth_flow(
             # Use custom OAuth configuration
             flow = oauth_mgr.initiate_custom_flow(
                 service_name=request.server_name,
-                client_id=request.custom_config.get("client_id"),
-                client_secret=request.custom_config.get("client_secret"),
-                auth_url=request.custom_config.get("auth_url"),
-                token_url=request.custom_config.get("token_url"),
-                scope=request.custom_scope or request.custom_config.get("scope", [])
+                client_id=str(request.custom_config.get("client_id")),
+                client_secret=str(request.custom_config.get("client_secret")),
+                auth_url=str(request.custom_config.get("authorization_url")),
+                token_url=str(request.custom_config.get("token_url")),
+                scope=request.custom_scope or list(request.custom_config.get("scope", []))
             )
         else:
             # Use built-in service configuration
             service_name = request.service_name or request.server_name
-            flow = oauth_mgr.initiate_flow(service_name, request.custom_scope)
+            flow = oauth_mgr.initiate_oauth_flow(service_name, request.custom_scope)
         
         logger.info(f"OAuth flow initiated: {flow.flow_id}")
         
+        if not flow.authorization_url:
+            raise HTTPException(status_code=500, detail="Failed to generate authorization URL")
+
         return OAuthInitiateResponse(
             success=True,
             flow_id=flow.flow_id,
-            auth_url=flow.auth_url,
+            auth_url=flow.authorization_url,
             expires_at=flow.expires_at,
             service_name=flow.service_name,
-            scope=flow.scope,
+            scope=flow.metadata.get("scope", []),
             message=f"OAuth flow initiated for {request.server_name}. Redirect user to auth_url."
         )
         
@@ -187,7 +190,7 @@ async def complete_oauth_flow(
             # Record success in auth detector
             auth_det.record_success(flow.service_name, {
                 "flow_id": request.flow_id,
-                "token_type": result.token_data.get("token_type", "Bearer"),
+                "token_type": result.token_data.get("token_type", "Bearer") if result.token_data else "Bearer",
                 "expires_at": result.expires_at.isoformat() if result.expires_at else None
             })
             
@@ -198,9 +201,9 @@ async def complete_oauth_flow(
             return OAuthCompleteResponse(
                 success=True,
                 server_name=flow.service_name,
-                access_token=f"{result.token_data.get('access_token', '')[:10]}..." if result.token_data.get('access_token') else None,
+                access_token=f"{result.token_data.get('access_token', '')[:10]}..." if result.token_data and result.token_data.get('access_token') else None,
                 expires_at=result.expires_at,
-                refresh_token_available=bool(result.token_data.get('refresh_token')),
+                refresh_token_available=bool(result.token_data.get('refresh_token')) if result.token_data else False,
                 error=None
             )
         else:
@@ -469,12 +472,12 @@ async def list_oauth_services(
     try:
         services = {}
         
-        for service_name, config in oauth_mgr.service_configs.items():
+        for service_name, config in oauth_mgr.oauth_configs.items():
             services[service_name] = {
                 "name": service_name,
-                "auth_url": config["auth_url"],
-                "scope": config.get("scope", []),
-                "description": config.get("description", f"OAuth service: {service_name}")
+                "auth_url": config.authorization_url,
+                "scope": config.scope,
+                "description": f"OAuth service: {service_name}"
             }
         
         return {

@@ -29,6 +29,13 @@ class CredentialEntry:
     credential_type: CredentialType
     description: Optional[str] = None
     auto_detected: bool = False
+    server_ids: Optional[Set[str]] = None  # Set of server IDs this credential is associated with
+                                # None or empty set means SYSTEM (global credential)
+    
+    def __post_init__(self):
+        """Initialize the server_ids as an empty set if None."""
+        if self.server_ids is None:
+            self.server_ids = set()
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -37,7 +44,8 @@ class CredentialEntry:
             "value": self.value if self.credential_type == CredentialType.ENVIRONMENT else "[MASKED]",
             "type": self.credential_type.value,
             "description": self.description,
-            "auto_detected": self.auto_detected
+            "auto_detected": self.auto_detected,
+            "server_ids": list(self.server_ids) if self.server_ids else []
         }
 
 
@@ -195,7 +203,8 @@ class CredentialManager:
     
     def set_credential(self, key: str, value: str, 
                       credential_type: Optional[CredentialType] = None,
-                      description: Optional[str] = None) -> CredentialEntry:
+                      description: Optional[str] = None,
+                      server_ids: Optional[Set[str]] = None) -> CredentialEntry:
         """
         Set a credential with automatic or manual type detection.
         
@@ -204,6 +213,8 @@ class CredentialManager:
             value: The credential value
             credential_type: Force a specific type, or None for auto-detection
             description: Optional description
+            server_ids: Optional set of server IDs this credential is associated with
+                        None or empty set means SYSTEM (global credential)
             
         Returns:
             CredentialEntry with the stored credential info
@@ -218,12 +229,17 @@ class CredentialManager:
         else:
             auto_detected = False
         
+        # Initialize server_ids if None
+        if server_ids is None:
+            server_ids = set()
+            
         entry = CredentialEntry(
             key=key,
             value=value,
             credential_type=credential_type,
             description=description,
-            auto_detected=auto_detected
+            auto_detected=auto_detected,
+            server_ids=server_ids
         )
         
         # Store based on type
@@ -236,7 +252,8 @@ class CredentialManager:
         self._metadata_cache[key] = {
             "type": credential_type.value,
             "description": description,
-            "auto_detected": auto_detected
+            "auto_detected": auto_detected,
+            "server_ids": list(server_ids) if server_ids else []
         }
         
         self._save_caches()
@@ -258,12 +275,17 @@ class CredentialManager:
         if value is None:
             return None
         
+        # Get server IDs from metadata
+        server_ids_list = metadata.get("server_ids", [])
+        server_ids = set(server_ids_list) if server_ids_list else set()
+        
         return CredentialEntry(
             key=key,
             value=value,
             credential_type=credential_type,
             description=metadata.get("description"),
-            auto_detected=metadata.get("auto_detected", False)
+            auto_detected=metadata.get("auto_detected", False),
+            server_ids=server_ids
         )
     
     def list_credentials(self) -> List[CredentialEntry]:
@@ -443,3 +465,96 @@ class CredentialManager:
             return False, f"Keyring error: {e}"
         except Exception as e:
             return False, f"Unexpected error: {e}"
+
+    def get_credentials_for_server(self, server_id: str) -> List[CredentialEntry]:
+        """Get all credentials associated with a specific server or SYSTEM credentials.
+        
+        Args:
+            server_id: ID of the server to get credentials for
+            
+        Returns:
+            List of credentials for the specified server and all SYSTEM credentials
+        """
+        all_credentials = self.list_credentials()
+        
+        # Filter credentials that are either associated with this server or are SYSTEM credentials
+        return [
+            cred for cred in all_credentials 
+            if not cred.server_ids or server_id in cred.server_ids
+        ]
+    
+    def update_server_association(self, key: str, server_ids: Set[str]) -> bool:
+        """Update the server associations for an existing credential.
+        
+        Args:
+            key: The credential key
+            server_ids: Set of server IDs this credential should be associated with
+                       Empty set means SYSTEM (global credential)
+                       
+        Returns:
+            True if successful, False if credential not found
+        """
+        if key not in self._metadata_cache:
+            return False
+        
+        # Update metadata
+        self._metadata_cache[key]["server_ids"] = list(server_ids) if server_ids else []
+        self._save_caches()
+        
+        logger.info(f"Updated server associations for credential '{key}'")
+        return True
+    
+    def add_server_association(self, key: str, server_id: str) -> bool:
+        """Add a server association to an existing credential.
+        
+        Args:
+            key: The credential key
+            server_id: Server ID to associate with this credential
+            
+        Returns:
+            True if successful, False if credential not found
+        """
+        if key not in self._metadata_cache:
+            return False
+        
+        # Get current server IDs
+        server_ids_list = self._metadata_cache[key].get("server_ids", [])
+        server_ids = set(server_ids_list)
+        
+        # Add new association
+        server_ids.add(server_id)
+        
+        # Update metadata
+        self._metadata_cache[key]["server_ids"] = list(server_ids)
+        self._save_caches()
+        
+        logger.info(f"Added server association '{server_id}' to credential '{key}'")
+        return True
+    
+    def remove_server_association(self, key: str, server_id: str) -> bool:
+        """Remove a server association from an existing credential.
+        
+        Args:
+            key: The credential key
+            server_id: Server ID to remove association from
+            
+        Returns:
+            True if successful, False if credential not found
+        """
+        if key not in self._metadata_cache:
+            return False
+        
+        # Get current server IDs
+        server_ids_list = self._metadata_cache[key].get("server_ids", [])
+        server_ids = set(server_ids_list)
+        
+        # Remove association if it exists
+        if server_id in server_ids:
+            server_ids.remove(server_id)
+        
+        # Update metadata
+        self._metadata_cache[key]["server_ids"] = list(server_ids)
+        self._save_caches()
+        
+        logger.info(f"Removed server association '{server_id}' from credential '{key}'")
+        return True

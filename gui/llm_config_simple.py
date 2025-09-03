@@ -19,6 +19,7 @@ from hive_mcp_gateway.services.credential_manager import CredentialManager, Cred
 from hive_mcp_gateway.services.ide_detector import IDEDetector, IDEType
 from hive_mcp_gateway.services.claude_code_sdk import ClaudeCodeSDK
 from hive_mcp_gateway.services.gemini_cli_sdk import GeminiCLISDK
+from hive_mcp_gateway.services.oauth_manager import OAuthManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class SimpleLLMConfigWidget(QWidget):
         
         # Initialize LLM manager 
         try:
-            self.llm_manager = LLMClientManager(None, self.credential_manager)
+            self.llm_manager = LLMClientManager(OAuthManager(self.credential_manager), self.credential_manager)
         except Exception as e:
             logger.error(f"Failed to initialize LLM manager: {e}")
             self.llm_manager = None
@@ -225,6 +226,11 @@ class SimpleLLMConfigWidget(QWidget):
         self.api_key_edit.setPlaceholderText("Enter your API key")
         form_layout.addRow("API Key:", self.api_key_edit)
         
+        # Auth method selection
+        self.auth_method_combo = QComboBox()
+        self.auth_method_combo.addItems(["Auto-detect (Piggyback)", "Direct API Key"])
+        form_layout.addRow("Auth Method:", self.auth_method_combo)
+        
         # Base URL
         self.base_url_edit = QLineEdit()
         self.base_url_edit.setPlaceholderText("https://api.openai.com/v1")
@@ -291,6 +297,11 @@ class SimpleLLMConfigWidget(QWidget):
         else:
             return
         
+        status_label = getattr(widget, 'status_label')
+        enable_check = getattr(widget, 'enable_check')
+        path_edit = getattr(widget, 'path_edit')
+        oauth_path_edit = getattr(widget, 'oauth_path_edit')
+        
         # Determine overall status
         is_installed = status.get(f"{provider_key}_installed", False)
         is_authenticated = status.get("authenticated", False)
@@ -298,58 +309,58 @@ class SimpleLLMConfigWidget(QWidget):
         
         if is_installed and is_authenticated:
             # Fully working
-            widget.status_label.setText("✅ Ready")
-            widget.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+            status_label.setText("✅ Ready")
+            status_label.setStyleSheet("color: #28a745; font-weight: bold;")
             
             # Enable all controls
-            widget.enable_check.setEnabled(True)
-            widget.oauth_path_edit.setEnabled(True)
-            widget.enable_check.setChecked(True)  # Auto-enable working providers
+            enable_check.setEnabled(True)
+            oauth_path_edit.setEnabled(True)
+            enable_check.setChecked(True)  # Auto-enable working providers
             
         elif is_installed and oauth_file_found:
             # Installed with credentials but may need refresh
-            widget.status_label.setText("⚠️ Needs Refresh")
-            widget.status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
+            status_label.setText("⚠️ Needs Refresh")
+            status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
             
             # Enable controls
-            widget.enable_check.setEnabled(True)
-            widget.oauth_path_edit.setEnabled(True)
+            enable_check.setEnabled(True)
+            oauth_path_edit.setEnabled(True)
             
         elif is_installed:
             # Installed but not authenticated
-            widget.status_label.setText("⚠️ Not Authenticated")
-            widget.status_label.setStyleSheet("color: #ff6b35; font-weight: bold;")
+            status_label.setText("⚠️ Not Authenticated")
+            status_label.setStyleSheet("color: #ff6b35; font-weight: bold;")
             
             # Enable path editing but not OAuth path
-            widget.enable_check.setEnabled(False)
-            widget.oauth_path_edit.setEnabled(False)
+            enable_check.setEnabled(False)
+            oauth_path_edit.setEnabled(False)
             
         else:
             # Not installed
-            widget.status_label.setText("⚠️ Not Detected")
-            widget.status_label.setStyleSheet("color: #ff6b35; font-weight: bold;")
+            status_label.setText("⚠️ Not Detected")
+            status_label.setStyleSheet("color: #ff6b35; font-weight: bold;")
             
             # Enable path editing for manual setup
-            widget.path_edit.setEnabled(True)
-            widget.path_edit.setPlaceholderText(f"Enter path to {provider_key.replace('_', ' ')} installation")
-            widget.enable_check.setEnabled(False)
-            widget.oauth_path_edit.setEnabled(False)
+            path_edit.setEnabled(True)
+            path_edit.setPlaceholderText(f"Enter path to {provider_key.replace('_', ' ')} installation")
+            enable_check.setEnabled(False)
+            oauth_path_edit.setEnabled(False)
         
         # Set paths if available
         app_path = status.get(f"{provider_key}_path")
         if app_path:
-            widget.path_edit.setText(app_path)
+            path_edit.setText(app_path)
         
         oauth_path = status.get("oauth_file_path") or status.get("credentials_file_path")
         if oauth_path:
-            widget.oauth_path_edit.setText(oauth_path)
+            oauth_path_edit.setText(oauth_path)
             
             # Check if file exists and style accordingly
             oauth_file_path = Path(oauth_path)
             if oauth_file_path.exists():
-                widget.oauth_path_edit.setStyleSheet("QLineEdit { background-color: #d4edda; }")
+                oauth_path_edit.setStyleSheet("QLineEdit { background-color: #d4edda; }")
             else:
-                widget.oauth_path_edit.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
+                oauth_path_edit.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
         else:
             # Set default OAuth path
             if provider_key == "claude_code":
@@ -359,8 +370,10 @@ class SimpleLLMConfigWidget(QWidget):
             else:
                 default_oauth = Path.home() / f".{provider_key}/oauth_creds.json"
             
-            widget.oauth_path_edit.setText(str(default_oauth))
-            widget.oauth_path_edit.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
+            oauth_path_edit.setText(str(default_oauth))
+            oauth_path_edit.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
+
+    def update_oauth_provider_status(self, provider_key: str, ide_info: Optional[Any]):
         """Update the status of an OAuth provider."""
         if provider_key == "claude_code":
             widget = self.claude_code_widget
@@ -369,17 +382,22 @@ class SimpleLLMConfigWidget(QWidget):
         else:
             return
         
+        status_label = getattr(widget, 'status_label')
+        enable_check = getattr(widget, 'enable_check')
+        path_edit = getattr(widget, 'path_edit')
+        oauth_path_edit = getattr(widget, 'oauth_path_edit')
+
         if ide_info and ide_info.is_installed:
             # Provider detected
-            widget.status_label.setText("✅ Detected")
-            widget.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+            status_label.setText("✅ Detected")
+            status_label.setStyleSheet("color: #28a745; font-weight: bold;")
             
             # Enable controls
-            widget.enable_check.setEnabled(True)
-            widget.oauth_path_edit.setEnabled(True)
+            enable_check.setEnabled(True)
+            oauth_path_edit.setEnabled(True)
             
             # Set detected path
-            widget.path_edit.setText(str(ide_info.executable_path))
+            path_edit.setText(str(ide_info.executable_path))
             
             # Set default OAuth path
             if provider_key == "claude_code":
@@ -389,22 +407,22 @@ class SimpleLLMConfigWidget(QWidget):
             else:
                 default_oauth = Path.home() / f".{provider_key}/oauth_creds.json"
             
-            widget.oauth_path_edit.setText(str(default_oauth))
+            oauth_path_edit.setText(str(default_oauth))
             
             # Check if OAuth credentials exist
             if default_oauth.exists():
-                widget.oauth_path_edit.setStyleSheet("QLineEdit { background-color: #d4edda; }")
+                oauth_path_edit.setStyleSheet("QLineEdit { background-color: #d4edda; }")
             else:
-                widget.oauth_path_edit.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
+                oauth_path_edit.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
                 
         else:
             # Provider not detected
-            widget.status_label.setText("⚠️ Not Detected")
-            widget.status_label.setStyleSheet("color: #ff6b35; font-weight: bold;")
+            status_label.setText("⚠️ Not Detected")
+            status_label.setStyleSheet("color: #ff6b35; font-weight: bold;")
             
             # Enable path editing for manual setup
-            widget.path_edit.setEnabled(True)
-            widget.path_edit.setPlaceholderText(f"Enter path to {provider_key} installation")
+            path_edit.setEnabled(True)
+            path_edit.setPlaceholderText(f"Enter path to {provider_key} installation")
     
     def detect_provider(self, provider_key: str):
         """Re-detect a specific provider using SDK integration."""
@@ -576,11 +594,11 @@ class SimpleLLMConfigWidget(QWidget):
             saved_count = 0
             
             # Save OAuth providers if enabled
-            if self.claude_code_widget.enable_check.isChecked():
+            if getattr(self.claude_code_widget, 'enable_check').isChecked():
                 self.save_oauth_provider("claude_code", "Claude Code")
                 saved_count += 1
             
-            if self.gemini_cli_widget.enable_check.isChecked():
+            if getattr(self.gemini_cli_widget, 'enable_check').isChecked():
                 self.save_oauth_provider("gemini_cli", "Gemini CLI")
                 saved_count += 1
             
@@ -612,6 +630,10 @@ class SimpleLLMConfigWidget(QWidget):
         else:
             return
         
+        enable_check = getattr(widget, 'enable_check')
+        oauth_path_edit = getattr(widget, 'oauth_path_edit')
+        path_edit = getattr(widget, 'path_edit')
+
         config = LLMConfig(
             provider=provider,
             name=display_name,
@@ -620,8 +642,8 @@ class SimpleLLMConfigWidget(QWidget):
             enabled=True,
             default_model=self.get_default_model(provider),
             auth_config={
-                "oauth_path": widget.oauth_path_edit.text(),
-                "install_path": widget.path_edit.text()
+                "oauth_path": oauth_path_edit.text(),
+                "install_path": path_edit.text()
             }
         )
         
@@ -653,6 +675,7 @@ class SimpleLLMConfigWidget(QWidget):
             name=provider_name,
             base_url=self.base_url_edit.text(),
             auth_method=AuthMethod.API_KEY,
+            preferred_auth_method=AuthMethod.API_KEY if self.auth_method_combo.currentText() == "Direct API Key" else AuthMethod.OAUTH,
             enabled=self.api_enable_check.isChecked(),
             default_model=self.model_edit.text() or None
         )

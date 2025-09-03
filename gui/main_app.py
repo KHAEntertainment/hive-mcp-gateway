@@ -2,12 +2,17 @@
 
 import sys
 import logging
-import asyncio
+import os
+import tempfile
+import atexit
+import socket
+import random
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QSystemTrayIcon, QMessageBox
-from PyQt6.QtCore import QTimer, pyqtSignal, QThread, QObject
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QObject
 from PyQt6.QtGui import QIcon, QAction
 
 # Import our GUI components
@@ -21,6 +26,73 @@ from hive_mcp_gateway.services.config_manager import ConfigManager
 from hive_mcp_gateway.services.migration_utility import MigrationUtility
 
 logger = logging.getLogger(__name__)
+
+
+class InstanceManager:
+    """Class to manage single instance of the application."""
+    
+    def __init__(self):
+        self.lock_file_path = os.path.join(tempfile.gettempdir(), 'hive_mcp_gateway.lock')
+        self.lock_file = None
+        
+    def try_lock(self) -> bool:
+        """Try to acquire lock to ensure only one instance runs.
+        
+        Uses a simple file-based locking mechanism that's reliable across platforms.
+        
+        Returns:
+            bool: True if this is the only instance, False if another instance is already running.
+        """
+        try:
+            # Check if the lock file exists and is stale
+            if os.path.exists(self.lock_file_path):
+                # Check if the process is still running
+                with open(self.lock_file_path, 'r') as f:
+                    try:
+                        pid = int(f.read().strip())
+                        # Try to send signal 0 to the process (doesn't actually send a signal,
+                        # but checks if the process exists)
+                        try:
+                            os.kill(pid, 0)
+                            # Process is still running
+                            logger.warning(f"Found running instance with PID {pid}")
+                            return False
+                        except OSError:
+                            # Process doesn't exist, lock file is stale
+                            logger.info(f"Found stale lock file for PID {pid}, removing")
+                            os.remove(self.lock_file_path)
+                    except (ValueError, IOError):
+                        # Invalid lock file, remove it
+                        logger.info("Found invalid lock file, removing")
+                        os.remove(self.lock_file_path)
+            
+            # Create new lock file with current PID
+            with open(self.lock_file_path, 'w') as f:
+                f.write(str(os.getpid()))
+            logger.info(f"Created lock file at {self.lock_file_path} with PID {os.getpid()}")
+            
+            # Register cleanup
+            atexit.register(self.release_lock)
+            return True
+                
+        except Exception as e:
+            logger.error(f"Error acquiring lock: {e}")
+            # Try to clean up if we created the lock file
+            self.release_lock()
+            return False
+    
+    def release_lock(self):
+        """Release lock when the application exits."""
+        # Remove lock file if it exists and it's our PID
+        try:
+            if os.path.exists(self.lock_file_path):
+                with open(self.lock_file_path, 'r') as f:
+                    pid = int(f.read().strip())
+                    if pid == os.getpid():
+                        os.remove(self.lock_file_path)
+                        logger.info(f"Removed lock file for PID {pid}")
+        except Exception as e:
+            logger.error(f"Error removing lock file: {e}")
 
 
 class HiveMCPGUI(QApplication):
@@ -38,6 +110,20 @@ class HiveMCPGUI(QApplication):
         self.setApplicationDisplayName("Hive MCP Gateway")
         self.setApplicationVersion("0.3.0")
         self.setQuitOnLastWindowClosed(False)  # Keep running when windows are closed
+        
+        # Initialize instance manager to prevent multiple instances
+        self.instance_manager = InstanceManager()
+        if not self.instance_manager.try_lock():
+            # Another instance is already running - show message and exit
+            # Use a more direct method to show message since we're exiting immediately
+            logger.warning("Another instance of Hive MCP Gateway is already running.")
+            QMessageBox.information(
+                None,
+                "Hive MCP Gateway",
+                "Another instance of Hive MCP Gateway is already running."
+            )
+            # Exit immediately
+            sys.exit(0)
         
         # Initialize backend services
         self.config_manager = ConfigManager()
@@ -149,7 +235,8 @@ class HiveMCPGUI(QApplication):
                 service_manager=self.service_manager,
                 dependency_checker=self.dependency_checker,
                 migration_utility=self.migration_utility,
-                parent=None  # QMainWindow should have None parent, not QApplication
+                autostart_manager=self.autostart_manager,
+                parent=None
             )
             
             # Connect main window navigation signals if they exist
@@ -161,6 +248,12 @@ class HiveMCPGUI(QApplication):
                 self.main_window.show_llm_config_requested.connect(self.show_llm_config)
             if hasattr(self.main_window, 'show_autostart_settings_requested'):
                 self.main_window.show_autostart_settings_requested.connect(self.show_autostart_settings)
+            if hasattr(self.main_window, 'show_client_config_requested'):
+                self.main_window.show_client_config_requested.connect(self.show_client_config)
+            
+            # Connect server edit signal
+            if hasattr(self.main_window, 'server_edit_requested'):
+                self.main_window.server_edit_requested.connect(self.edit_server)
             
             # Don't show main window by default (menubar app)
             # self.main_window.show()
@@ -244,7 +337,7 @@ class HiveMCPGUI(QApplication):
             from .credential_management import CredentialManagementWidget
             
             if not hasattr(self, '_credentials_manager'):
-                self._credentials_manager = CredentialManagementWidget()
+                self._credentials_manager = CredentialManagementWidget(config_manager=self.config_manager)
             
             self._credentials_manager.show()
             self._credentials_manager.raise_()
@@ -285,6 +378,27 @@ class HiveMCPGUI(QApplication):
             self.main_window.raise_()
             self.main_window.activateWindow()
     
+    def edit_server(self, server_id: str, json_config: str):
+        """Handle server editing request."""
+        try:
+            # Show the snippet processor
+            self.show_snippet_processor()
+            
+            # Set editing mode with server config
+            if hasattr(self, '_snippet_processor') and hasattr(self._snippet_processor, 'set_editing_mode'):
+                self._snippet_processor.set_editing_mode(server_id, json_config)
+                logger.info(f"Set snippet processor to edit mode for server {server_id}")
+            else:
+                logger.error(f"Cannot set snippet processor to edit mode for server {server_id}")
+                
+        except Exception as e:
+            logger.error(f"Error setting up server editing: {e}")
+            QMessageBox.critical(
+                None,
+                "Server Editing Error",
+                f"Failed to edit server {server_id}: {e}"
+            )
+    
     def on_service_status_changed(self, status: str):
         """Handle service status changes."""
         if self.system_tray:
@@ -314,6 +428,26 @@ class HiveMCPGUI(QApplication):
             self.safe_show_notification(
                 "Registration Failed",
                 f"Failed to register MCP server '{server_name}'"
+            )
+    
+    def show_client_config(self):
+        """Show the client configuration window."""
+        try:
+            from .client_config_window import ClientConfigWindow
+            
+            if not hasattr(self, '_client_config_window'):
+                self._client_config_window = ClientConfigWindow()
+            
+            self._client_config_window.show()
+            self._client_config_window.raise_()
+            self._client_config_window.activateWindow()
+            
+        except Exception as e:
+            logger.error(f"Failed to show client config: {e}")
+            QMessageBox.critical(
+                None,
+                "Client Configuration Error",
+                f"Failed to open client configuration: {e}"
             )
     
     def show_autostart_settings(self):
@@ -368,6 +502,24 @@ class HiveMCPGUI(QApplication):
                 f"Failed to access auto-start settings: {e}"
             )
     
+    
+    def update_autostart_status(self):
+        """Update the auto-start status in the system."""
+        if self.autostart_manager:
+            try:
+                # Get current status
+                is_enabled = self.autostart_manager.is_auto_start_enabled()
+                
+                # Update system tray or other UI elements if needed
+                if self.system_tray:
+                    # Update any auto-start related UI elements in system tray
+                    pass
+                    
+                logger.debug(f"Auto-start status updated: {'enabled' if is_enabled else 'disabled'}")
+                
+            except Exception as e:
+                logger.error(f"Failed to update auto-start status: {e}")
+    
     def quit_application(self):
         """Quit the application gracefully."""
         logger.info("Shutting down Hive MCP Gateway GUI...")
@@ -378,15 +530,23 @@ class HiveMCPGUI(QApplication):
         
         # Stop backend service if running
         if self.service_manager:
-            service_status = self.service_manager.get_service_status()
-            if service_status.is_running:
-                self.service_manager.stop_service()
+            try:
+                service_status = self.service_manager.get_service_status()
+                if hasattr(service_status, 'is_running') and service_status.is_running:
+                    self.service_manager.stop_service()
+            except Exception as e:
+                logger.error(f"Error stopping service: {e}")
         
         # Hide system tray
         if self.system_tray:
             self.system_tray.hide()
         
+        # Release the instance lock
+        if hasattr(self, 'instance_manager'):
+            self.instance_manager.release_lock()
+        
         # Quit application
+        logger.info("Hive MCP Gateway shutdown complete")
         self.quit()
 
 
@@ -398,18 +558,29 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Create and run application
-    app = HiveMCPGUI()
-    
-    # Show startup notification
-    if app.system_tray:
-        app.system_tray.show_notification(
-            "Hive MCP Gateway",
-            "Application started. Access from the menu bar."
+    try:
+        # Create and run application
+        app = HiveMCPGUI()
+        
+        # Show startup notification
+        if app.system_tray:
+            app.system_tray.show_notification(
+                "Hive MCP Gateway",
+                "Application started. Access from the menu bar."
+            )
+        
+        # Run the application
+        sys.exit(app.exec())
+    except Exception as e:
+        logger.error(f"Error in main application: {e}")
+        # Display error message
+        app = QApplication(sys.argv)  # Create a simple QApplication to show error message
+        QMessageBox.critical(
+            None,
+            "Hive MCP Gateway Error",
+            f"Failed to start application: {e}"
         )
-    
-    # Run the application
-    sys.exit(app.exec())
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import psutil
 import logging
 import signal
 import time
+import requests
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
@@ -72,24 +73,30 @@ class ServiceManager(QObject):
             
             # Start the process
             self.tool_gating_process = QProcess()
-            self.tool_gating_process.setProgram(cmd[0])
-            self.tool_gating_process.setArguments(cmd[1:])
             
-            # Connect signals
-            self.tool_gating_process.readyReadStandardOutput.connect(self._on_stdout)
-            self.tool_gating_process.readyReadStandardError.connect(self._on_stderr)
-            self.tool_gating_process.finished.connect(self._on_process_finished)
-            
-            # Start the process
-            self.tool_gating_process.start()
-            
-            if self.tool_gating_process.waitForStarted(5000):
-                self.tool_gating_pid = self.tool_gating_process.processId()
-                logger.info(f"Started Hive MCP Gateway service (PID: {self.tool_gating_pid})")
-                self.status_changed.emit("running")
-                return True
+            if self.tool_gating_process: # Add check here
+                self.tool_gating_process.setProgram(cmd[0])
+                self.tool_gating_process.setArguments(cmd[1:])
+                
+                # Connect signals
+                self.tool_gating_process.readyReadStandardOutput.connect(self._on_stdout)
+                self.tool_gating_process.readyReadStandardError.connect(self._on_stderr)
+                self.tool_gating_process.finished.connect(self._on_process_finished)
+                
+                # Start the process
+                self.tool_gating_process.start()
+                
+                if self.tool_gating_process.waitForStarted(5000):
+                    self.tool_gating_pid = self.tool_gating_process.processId()
+                    logger.info(f"Started Hive MCP Gateway service (PID: {self.tool_gating_pid})")
+                    self.status_changed.emit("running")
+                    return True
+                else:
+                    logger.error("Failed to start Hive MCP Gateway service")
+                    self.status_changed.emit("error")
+                    return False
             else:
-                logger.error("Failed to start Hive MCP Gateway service")
+                logger.error("Failed to create QProcess object.")
                 self.status_changed.emit("error")
                 return False
                 
@@ -201,86 +208,11 @@ class ServiceManager(QObject):
                 logs.extend(stderr.split('\n'))
         
         # Return last N lines
-        return logs[-lines:] if logs else ["No logs available"]
+        return logs[-lines:] if len(logs) > lines else logs
     
-    def check_mcp_proxy_status(self) -> bool:
-        """Check if mcp-proxy service is running."""
-        return self._is_port_in_use(self.mcp_proxy_port)
-    
-    def start_mcp_proxy(self) -> bool:
-        """Start mcp-proxy service (if not running)."""
-        try:
-            if self.check_mcp_proxy_status():
-                logger.info("mcp-proxy is already running")
-                return True
-            
-            # Try to start mcp-proxy from the known installation
-            mcp_proxy_binary = self.mcp_proxy_path / "mcp-proxy"
-            
-            if not mcp_proxy_binary.exists():
-                logger.error(f"mcp-proxy binary not found at {mcp_proxy_binary}")
-                return False
-            
-            # Start mcp-proxy in background
-            cmd = [str(mcp_proxy_binary)]
-            
-            # Look for config file
-            config_file = self.mcp_proxy_path / "config.json"
-            if config_file.exists():
-                cmd.extend(["--config", str(config_file)])
-            
-            subprocess.Popen(cmd, cwd=str(self.mcp_proxy_path))
-            
-            # Give it time to start
-            time.sleep(3)
-            
-            return self.check_mcp_proxy_status()
-            
-        except Exception as e:
-            logger.error(f"Failed to start mcp-proxy: {e}")
-            return False
-    
-    def get_mcp_proxy_logs(self) -> List[str]:
-        """Get mcp-proxy logs if available."""
-        log_file = self.mcp_proxy_path / "mcp-proxy.log"
-        
-        if log_file.exists():
-            try:
-                with open(log_file, 'r') as f:
-                    lines = f.readlines()
-                    return [line.strip() for line in lines[-100:]]  # Last 100 lines
-            except Exception as e:
-                logger.error(f"Failed to read mcp-proxy logs: {e}")
-        
-        return ["No logs available"]
-    
-    def check_service_status(self):
-        """Periodic status check (called by timer)."""
-        try:
-            current_running = self.is_service_running()
-            
-            # Emit status change if needed
-            if current_running:
-                self.status_changed.emit("running")
-            else:
-                if self.tool_gating_process:
-                    self.status_changed.emit("stopped")
-        
-        except Exception as e:
-            logger.error(f"Error during status check: {e}")
-            self.status_changed.emit("error")
-    
-    def _get_start_command(self) -> List[str]:
-        """Get the command to start the Hive MCP Gateway service."""
-        # Try to find the hive-mcp-gateway command in PATH
-        result = subprocess.run(["which", "hive-mcp-gateway"], 
-                              capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip():
-            return ["hive-mcp-gateway"]
-        
-        # Try to determine the best way to start the service
-        
-        # Method 1: Check if installed as package
+    def _get_start_command(self) -> Optional[List[str]]:
+        """Get command to start the service."""
+        # Method 1: Try to find tool-gating-mcp in PATH
         try:
             result = subprocess.run(["which", "tool-gating-mcp"], 
                                   capture_output=True, text=True)
@@ -320,59 +252,96 @@ class ServiceManager(QObject):
             return False
     
     def _on_stdout(self):
-        """Handle process stdout."""
+        """Handle stdout from the process."""
         if self.tool_gating_process:
-            data = self.tool_gating_process.readAllStandardOutput().data().decode()
-            for line in data.strip().split('\n'):
-                if line.strip():
-                    self.log_message.emit(f"STDOUT: {line}")
+            data = self.tool_gating_process.readAllStandardOutput().data()
+            if data:
+                message = data.decode().strip()
+                if message:
+                    self.log_message.emit(message)
     
     def _on_stderr(self):
-        """Handle process stderr."""
+        """Handle stderr from the process."""
         if self.tool_gating_process:
-            data = self.tool_gating_process.readAllStandardError().data().decode()
-            for line in data.strip().split('\n'):
-                if line.strip():
-                    self.log_message.emit(f"STDERR: {line}")
+            data = self.tool_gating_process.readAllStandardError().data()
+            if data:
+                message = data.decode().strip()
+                if message:
+                    self.log_message.emit(f"ERROR: {message}")
     
-    def _on_process_finished(self, exit_code: int):
-        """Handle process termination."""
-        logger.info(f"Hive MCP Gateway process finished with exit code: {exit_code}")
+    def _on_process_finished(self):
+        """Handle process finished event."""
+        logger.info("Hive MCP Gateway service process finished")
         self.tool_gating_process = None
         self.tool_gating_pid = None
         self.status_changed.emit("stopped")
-
-
-class ProcessMonitor(QThread):
-    """Background thread for monitoring process status."""
     
-    status_update = pyqtSignal(dict)
-    
-    def __init__(self, service_manager: ServiceManager):
-        super().__init__()
-        self.service_manager = service_manager
-        self.running = True
-    
-    def run(self):
-        """Monitor processes in background."""
-        while self.running:
-            try:
-                status_info = {
-                    "tool_gating": self.service_manager.get_service_status(),
-                    "mcp_proxy": self.service_manager.check_mcp_proxy_status(),
-                    "timestamp": datetime.now()
-                }
+    def check_service_status(self):
+        """Periodic status check (called by timer)."""
+        try:
+            current_running = self.is_service_running()
+            
+            # Emit status change if needed
+            if current_running:
+                self.status_changed.emit("running")
+            else:
+                self.status_changed.emit("stopped")
                 
-                self.status_update.emit(status_info)
-                
-                # Sleep for 10 seconds
-                self.msleep(10000)
-                
-            except Exception as e:
-                logger.error(f"Error in process monitor: {e}")
-                self.msleep(5000)
+        except Exception as e:
+            logger.error(f"Error in status check: {e}")
     
-    def stop(self):
-        """Stop monitoring."""
-        self.running = False
-        self.wait()
+    def get_server_statuses(self) -> List[Dict[str, Any]]:
+        """
+        Get server statuses from the running service.
+        
+        Returns:
+            List of server status dictionaries, or empty list if service is not running
+        """
+        if not self.is_service_running():
+            return []
+        
+        try:
+            # Make HTTP request to get server statuses
+            response = requests.get(f"http://localhost:{self.tool_gating_port}/api/mcp/servers", timeout=5)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to get server statuses: {response.status_code}")
+                return []
+        except Exception as e:
+            logger.error(f"Error getting server statuses: {e}")
+            return []
+    
+    def restart_backend_server(self, server_id: str) -> bool:
+        """
+        Restart a specific backend MCP server.
+        
+        Args:
+            server_id (str): ID of the server to restart
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.is_service_running():
+            logger.error(f"Cannot restart server {server_id}: service not running")
+            return False
+            
+        try:
+            # Call the API to reconnect the server
+            # First make sure it's enabled
+            response = requests.post(
+                f"http://localhost:{self.tool_gating_port}/api/mcp/reconnect",
+                json={"server_id": server_id},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                logger.info(f"Successfully restarted server {server_id}")
+                return True
+            else:
+                logger.error(f"Failed to restart server {server_id}: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error restarting server {server_id}: {e}")
+            return False

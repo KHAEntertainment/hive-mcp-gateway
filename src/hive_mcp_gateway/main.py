@@ -1,5 +1,6 @@
 # FastAPI application entry point
 # Defines the main app instance and core routes
+print("=== FILE IS BEING IMPORTED ===")
 
 import logging
 import os
@@ -19,8 +20,8 @@ from .services.mcp_registry import MCPServerRegistry
 from .services.auto_registration import AutoRegistrationService
 from .services.error_handler import ErrorHandler
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with debug level
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -35,13 +36,16 @@ class HealthResponse(BaseModel):
 async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
     # Startup
-    logger.info("Starting Hive MCP Gateway Proxy...")
+    print("=== LIFESPAN STARTUP PHASE STARTING ===")
+    logger.info("=== LIFESPAN STARTUP PHASE STARTING ===")
     
     try:
+        logger.info("Initializing configuration manager...")
         # Initialize configuration manager
         config_path = os.getenv('CONFIG_PATH', 'config/tool_gating_config.yaml')
         config_manager = ConfigManager(config_path)
         
+        logger.info("Loading configuration...")
         # Load configuration
         config = config_manager.load_config()
         app_settings = config.tool_gating
@@ -51,9 +55,25 @@ async def lifespan(app: FastAPI):
         logger.info(f"Application port: {app_settings.port}, Host: {app_settings.host}")
         
         # Initialize services
+        logger.info("Initializing MCPClientManager...")
         client_manager = MCPClientManager()
-        registry = MCPServerRegistry(config_path)
+        # Use the main config file instead of separate registry
+        logger.info("Initializing MCPServerRegistry...")
+        registry = MCPServerRegistry("config/tool_gating_config.yaml")
+        
+        # Register all backend servers from main config into the registry
+        logger.info("Registering backend servers from main configuration...")
+        for server_name, server_config in backend_servers.items():
+            logger.info(f"Attempting to register server: {server_name}")
+            result = await registry.register_server_from_config(server_name, server_config)
+            if result["status"] == "success":
+                logger.info(f"✓ Registered server: {server_name}")
+            else:
+                logger.warning(f"✗ Failed to register server {server_name}: {result['message']}")
+        
+        logger.info("Initializing AutoRegistrationService...")
         auto_registration = AutoRegistrationService(config_manager, client_manager, registry)
+        logger.info("Initializing ErrorHandler...")
         error_handler = ErrorHandler()
         
         # Automatically register all servers with multi-stage pipeline
@@ -71,21 +91,27 @@ async def lifespan(app: FastAPI):
                 logger.warning(f" - {failed['server']}: {failed['error']}")
         
         # Get tool repository
+        logger.info("Initializing InMemoryToolRepository...")
         tool_repository = InMemoryToolRepository()
         
         # Initialize proxy service
+        logger.info("Initializing ProxyService...")
         proxy_service = ProxyService(client_manager, tool_repository)
+        logger.info("Discovering all tools...")
         await proxy_service.discover_all_tools()
         
         # Initialize file watcher for dynamic configuration updates
-        file_watcher = FileWatcherService(config_manager, client_manager)
+        logger.info("Initializing FileWatcherService...")
+        file_watcher = FileWatcherService(config_manager, registry)  # Fixed: pass registry instead of client_manager
         
         # Start file watching if enabled
         if app_settings.config_watch_enabled:
+            logger.info("Starting file watching...")
             await file_watcher.start_watching(config_path)
             logger.info("✓ Configuration file watching enabled")
         
         # Store in app state for dependency injection
+        logger.info("Storing services in app state...")
         app.state.client_manager = client_manager
         app.state.proxy_service = proxy_service
         app.state.config_manager = config_manager
@@ -96,25 +122,31 @@ async def lifespan(app: FastAPI):
         app.state.error_handler = error_handler
         
         logger.info("✓ Proxy initialization complete")
+        logger.info("Lifespan startup phase completed successfully")
         
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
     
+    logger.info("=== YIELDING CONTROL TO APPLICATION ===")
     yield
     
     # Shutdown
+    logger.info("=== LIFESPAN SHUTDOWN PHASE STARTING ===")
     logger.info("Shutting down Hive MCP Gateway Proxy...")
     
     # Stop file watcher
     if hasattr(app.state, "file_watcher"):
+        logger.info("Stopping file watcher...")
         await app.state.file_watcher.stop_watching()
     
     # Disconnect all MCP servers
     if hasattr(app.state, "client_manager"):
+        logger.info("Disconnecting all MCP servers...")
         await app.state.client_manager.disconnect_all()
     
     logger.info("Shutdown complete")
+    logger.info("=== LIFESPAN SHUTDOWN PHASE COMPLETE ===")
 
 
 app = FastAPI(
@@ -172,6 +204,8 @@ mcp_server.mount()
 
 def main():
     """Main entry point for running the application."""
+    print("=== MAIN FUNCTION CALLED ===")
+    logger.info("=== MAIN FUNCTION CALLED ===")
     import uvicorn
     
     # Load configuration to get host and port
@@ -203,4 +237,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print("=== IF __NAME__ == '__MAIN__' BLOCK EXECUTED ===")
     main()

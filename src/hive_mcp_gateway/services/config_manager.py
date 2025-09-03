@@ -5,7 +5,7 @@ import yaml
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set
 from string import Template
 
 from pydantic import ValidationError
@@ -25,11 +25,18 @@ logger = logging.getLogger(__name__)
 class ConfigManager:
     """Manages configuration for Hive MCP Gateway with validation and environment variable substitution."""
     
-    def __init__(self, config_path: str = "tool_gating_config.json"):
+    def __init__(self, config_path: str = "tool_gating_config.json", credential_manager=None):
         """Initialize config manager with path to configuration file."""
         self.config_path = Path(config_path)
         self._config: Optional[ToolGatingConfig] = None
         self._last_modified: Optional[float] = None
+        self.credential_manager = credential_manager
+        
+        # Create credential manager if none provided
+        if self.credential_manager is None:
+            # Import here to avoid circular imports
+            from ..services.credential_manager import CredentialManager
+            self.credential_manager = CredentialManager()
         
     def load_config(self) -> ToolGatingConfig:
         """Load configuration from file with environment variable substitution."""
@@ -57,8 +64,20 @@ class ConfigManager:
                 # Default to JSON
                 config_data = json.loads(substituted_content)
             
+            # DEBUG: Log the parsed config data
+            logger.debug(f"Raw config data keys: {list(config_data.keys())}")
+            backend_servers_raw = config_data.get('backendMcpServers', {})
+            logger.debug(f"Raw backend servers count: {len(backend_servers_raw)}")
+            for name, server_data in backend_servers_raw.items():
+                logger.debug(f"  Raw server {name}: {server_data}")
+            
             # Validate and create config object
             config = ToolGatingConfig(**config_data)
+            
+            # DEBUG: Log the parsed config object
+            logger.debug(f"Parsed backend servers count: {len(config.backend_mcp_servers)}")
+            for name, server_config in config.backend_mcp_servers.items():
+                logger.debug(f"  Parsed server {name}: type={server_config.type}, command={server_config.command}, enabled={server_config.enabled}")
             
             # Cache config and modification time
             self._config = config
@@ -206,6 +225,15 @@ class ConfigManager:
             logger.info(f"{'Enabled' if enabled else 'Disabled'} server: {name}")
             return True
         return False
+
+
+    def set_port(self, port: int) -> bool:
+        """Set the port in the configuration."""
+        current_config = self.load_config()
+        current_config.tool_gating.port = port
+        self.save_config(current_config)
+        logger.info(f"Set port to: {port}")
+        return True
     
     def process_mcp_snippet(self, json_text: str, server_name: Optional[str] = None) -> ProcessResult:
         """Process MCP JSON snippet and add/update server configuration."""
@@ -283,15 +311,24 @@ class ConfigManager:
         current_config = self.load_config()
         action = "updated" if server_name in current_config.backend_mcp_servers else "added"
         
-        # Add/update server
-        self.add_backend_server(server_name, config)
+        # Process credentials from the configuration
+        processed_credentials = self.extract_and_process_credentials(server_name, config)
         
-        return ProcessResult(
+        # Add/update server
+        self.add_backend_server(server_name, BackendServerConfig(**config))
+        
+        result = ProcessResult(
             success=True,
             server_name=server_name,
             action=action,
             message=f"Successfully {action} server '{server_name}'"
         )
+        
+        # Add credentials info if any were processed
+        if processed_credentials:
+            result.message += f" with {len(processed_credentials)} credential(s)"
+        
+        return result
     
     def _process_direct_format(self, snippet_data: Dict[str, Any], server_name: Optional[str]) -> ProcessResult:
         """Process direct server configuration format."""
@@ -309,15 +346,24 @@ class ConfigManager:
             current_config = self.load_config()
             action = "updated" if server_name in current_config.backend_mcp_servers else "added"
             
+            # Process credentials from the configuration
+            processed_credentials = self.extract_and_process_credentials(server_name, snippet_data)
+            
             # Add/update server
             self.add_backend_server(server_name, config)
             
-            return ProcessResult(
+            result = ProcessResult(
                 success=True,
                 server_name=server_name,
                 action=action,
                 message=f"Successfully {action} server '{server_name}'"
             )
+            
+            # Add credentials info if any were processed
+            if processed_credentials:
+                result.message += f" with {len(processed_credentials)} credential(s)"
+            
+            return result
             
         except ValidationError as e:
             return ProcessResult(
@@ -350,3 +396,55 @@ class ConfigManager:
         
         return config_data
     
+    def extract_and_process_credentials(self, server_name: str, config_data: Dict[str, Any]) -> List[str]:
+        """
+        Extract credentials from server configuration and store them.
+        
+        Args:
+            server_name: The name of the server
+            config_data: The server configuration data
+            
+        Returns:
+            List of processed credential keys
+        """
+        processed_keys = []
+        
+        # Skip if no credential manager
+        if not self.credential_manager:
+            logger.warning("No credential manager available, skipping credential extraction")
+            return processed_keys
+        
+        # Process environment variables if present
+        env_vars = config_data.get("env", {})
+        for key, value in env_vars.items():
+            # Check if this is a placeholder (${VAR_NAME})
+            if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                # Extract actual variable name
+                var_name = value[2:-1]
+                
+                # Check if this credential already exists
+                existing_cred = self.credential_manager.get_credential(var_name)
+                
+                if existing_cred:
+                    # Update server association for existing credential
+                    if self.credential_manager:
+                        # Get current servers or initialize empty set
+                        current_servers = existing_cred.server_ids or set()
+                        # Add current server
+                        current_servers.add(server_name)
+                        self.credential_manager.update_server_association(var_name, current_servers)
+                    processed_keys.append(var_name)
+                else:
+                    # Create new credential as a placeholder (user will need to set actual value)
+                    # Using empty value as placeholder
+                    self.credential_manager.set_credential(
+                        var_name, 
+                        "", 
+                        # Auto-detect type based on key name
+                        description=f"Automatically detected from server '{server_name}'",
+                        server_ids={server_name}
+                    )
+                    processed_keys.append(var_name)
+                    logger.info(f"Created placeholder credential '{var_name}' for server '{server_name}'")
+        
+        return processed_keys

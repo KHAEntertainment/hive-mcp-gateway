@@ -10,6 +10,7 @@ __version__ = "0.2.0"
 
 def main() -> None:
     """CLI entry point for the application."""
+    print("=== INIT.PY MAIN FUNCTION CALLED ===")
     import uvicorn
 
     # Check if running in MCP mode
@@ -19,4 +20,8 @@ def main() -> None:
         run_mcp_stdio()
     else:
         # Run as standard HTTP API
+        print("=== STARTING UVICORN SERVER ===")
         uvicorn.run("hive_mcp_gateway.main:app", host="0.0.0.0", port=8001, reload=True)
+        print("=== UVICORN SERVER STOPPED ===")
+        
+    print("=== INIT.PY MAIN FUNCTION ENDED ===")

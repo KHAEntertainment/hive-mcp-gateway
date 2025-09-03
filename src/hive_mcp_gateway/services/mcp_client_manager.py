@@ -1,29 +1,15 @@
-"""MCP Client Manager for managing connections to multiple MCP servers with error handling"""
+"""MCP Client Manager for managing connections to multiple MCP servers"""
 
 import asyncio
-import aiohttp
-import shutil
-from typing import Dict, List, Any, Optional
-from contextlib import asynccontextmanager
 import logging
+from typing import Dict, Any, List, Optional
+from contextlib import asynccontextmanager
 
-try:
-    from mcp import ClientSession
-    from mcp.client.stdio import stdio_client, StdioServerParameters
-    HAS_MCP_SDK = True
-except ImportError:
-    # Fallback for testing or when MCP SDK not available
-    ClientSession = Any
-    stdio_client = None
-    StdioServerParameters = Any
-    HAS_MCP_SDK = False
+from mcp import ClientSession
+from mcp.client.stdio import stdio_client, StdioServerParameters
+import aiohttp
 
-from ..services.error_handler import (
-    ConnectionError,
-    AuthenticationError,
-    ToolExecutionError,
-    HealthCheckError
-)
+from .error_handler import ErrorHandler, ToolExecutionError, ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +43,11 @@ class MCPClientManager:
                 error = ConnectionError(f"Unsupported server type: {server_type}")
                 if self.error_handler:
                     self.error_handler.handle_error(name, error, "connect_server")
-                logger.error(f"Unsupported server type '{server_type}' for server {name}")
-                self._server_info[name] = {
-                    "config": config,
-                    "connected": False,
-                    "error": f"Unsupported server type: {server_type}"
-                }
-                self.server_tools[name] = []
-                result = {"status": "error", "message": str(error)}
+                return {"status": "error", "message": str(error)}
+            
+            # Ensure tools_count is included in the result
+            if "tools_count" not in result and name in self.server_tools:
+                result["tools_count"] = len(self.server_tools.get(name, []))
                 
             return result
             
@@ -73,14 +56,18 @@ class MCPClientManager:
             if self.error_handler:
                 self.error_handler.handle_error(name, error, "connect_server")
             logger.error(f"Failed to connect to server {name}: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "message": str(error)}
     
     async def _connect_stdio_server(self, name: str, config: dict) -> Dict[str, Any]:
-        """Connect to a stdio-based MCP server."""
-        if not HAS_MCP_SDK or not stdio_client:
-            logger.warning(f"MCP SDK not available, using mock tools for {name}")
+        """Connect to a stdio-based MCP server and discover its tools."""
+        # Special handling for context7 - use mock tools if MCP SDK is not available
+        try:
+            from mcp import ClientSession
+            from mcp.client.stdio import stdio_client, StdioServerParameters
+        except ImportError:
+            logger.warning("MCP SDK not available, using mock tools for server: %s", name)
             
-            # For testing/development, add mock tools
+            # Provide mock tools for context7 specifically
             mock_tools = []
             if name == "context7":
                 mock_tools = [
@@ -102,48 +89,50 @@ class MCPClientManager:
                 "connected": False,
                 "reason": "MCP SDK not available (using mock tools)"
             }
-            return {"status": "success", "message": "Using mock tools due to missing MCP SDK"}
+            return {"status": "success", "message": "Using mock tools due to missing MCP SDK", "tools_count": len(mock_tools)}
             
         try:
             logger.info(f"Attempting to connect to stdio MCP server: {name}")
             
-            # For now, just discover tools without keeping connection open
-            # Real implementation would maintain persistent connections
             server_params = StdioServerParameters(
                 command=config["command"],
                 args=config.get("args", []),
                 env=config.get("env", {})
             )
             
-            # Create stdio client connection to discover tools
-            async with stdio_client(server_params) as (read_stream, write_stream):
-                logger.info(f"Created stdio streams for {name}")
-                
-                # Create a ClientSession with the streams
-                async with ClientSession(read_stream, write_stream) as session:
-                    # Initialize the connection
-                    await session.initialize()
-                    logger.info(f"Successfully initialized connection to {name}")
-                    
-                    # Discover available tools
-                    tools_response = await session.list_tools()
-                    tools = tools_response.tools if hasattr(tools_response, 'tools') else []
-                    
-                    self.server_tools[name] = tools
-                    logger.info(f"Discovered {len(tools)} tools from {name}")
-                    
-                    # Log tool names for debugging
-                    for tool in tools:
-                        logger.debug(f"  - {tool.name}: {tool.description[:50]}...")
-                    
-                    # Store server info
-                    self._server_info[name] = {
-                        "config": config,
-                        "connected": True,
-                        "tools_discovered": len(tools)
-                    }
-                    
-                    return {"status": "success", "message": f"Connected to {name}", "tools_count": len(tools)}
+            # Create context manager and store it
+            context = stdio_client(server_params)
+            self._stdio_contexts[name] = context
+            
+            # Enter the context
+            read_stream, write_stream = await context.__aenter__()
+            
+            # Create and store session
+            session = ClientSession(read_stream, write_stream)
+            self.sessions[name] = session
+            
+            # Initialize the session
+            await session.initialize()
+            
+            # Discover available tools
+            tools_response = await session.list_tools()
+            tools = tools_response.tools if hasattr(tools_response, 'tools') else []
+            self.server_tools[name] = tools
+            
+            logger.info(f"Discovered {len(tools)} tools from {name}")
+            
+            # Log tool names for debugging
+            for tool in tools:
+                logger.debug(f"  - {tool.name}: {tool.description[:50]}...")
+            
+            # Store server info
+            self._server_info[name] = {
+                "config": config,
+                "connected": True,
+                "tools_discovered": len(tools)
+            }
+            
+            return {"status": "success", "message": f"Connected to {name}", "tools_count": len(tools)}
                         
         except FileNotFoundError as e:
             error = ConnectionError(f"Command not found: {config['command']}")
@@ -156,54 +145,40 @@ class MCPClientManager:
                 "error": f"Command not found: {config['command']}"
             }
             self.server_tools[name] = []
-            return {"status": "error", "message": str(error)}
+            return {"status": "error", "message": str(error), "tools_count": 0}
         except Exception as e:
             error = ConnectionError(f"Failed to connect to stdio server {name}: {str(e)}")
             if self.error_handler:
                 self.error_handler.handle_error(name, error, "_connect_stdio_server")
             logger.error(f"Failed to connect to stdio server {name}: {str(e)}")
+            # Clean up on error
+            if name in self._stdio_contexts:
+                try:
+                    await self._stdio_contexts[name].__aexit__(None, None, None)
+                except:
+                    pass
+                del self._stdio_contexts[name]
+            if name in self.sessions:
+                del self.sessions[name]
             self._server_info[name] = {
                 "config": config,
                 "connected": False,
                 "error": str(e)
             }
             self.server_tools[name] = []
-            return {"status": "error", "message": str(error)}
+            return {"status": "error", "message": str(error), "tools_count": 0}
     
     async def _connect_http_server(self, name: str, config: dict) -> Dict[str, Any]:
-        """Connect to an HTTP-based MCP server."""
+        """Connect to an HTTP-based MCP server and discover its tools."""
         try:
-            logger.info(f"Attempting to connect to HTTP MCP server: {name}")
-            
-            # For HTTP servers, we'll create a session and attempt to discover tools
-            # This is a simplified implementation - real implementation would use proper HTTP transport
             url = config.get("url")
             headers = config.get("headers", {})
             
-            # Apply authentication if specified
-            auth_config = config.get("authentication", {})
-            auth_type = auth_config.get("type", "none")
+            if not url:
+                raise ValueError("HTTP server configuration must include 'url'")
             
-            if auth_type == "bearer":
-                token = auth_config.get('token', '')
-                if not token:
-                    error = AuthenticationError("Bearer token is missing")
-                    if self.error_handler:
-                        self.error_handler.handle_error(name, error, "_connect_http_server")
-                    return {"status": "error", "message": "Bearer token is missing"}
-                headers["Authorization"] = f"Bearer {token}"
-            elif auth_type == "basic":
-                username = auth_config.get('username', '')
-                password = auth_config.get('password', '')
-                if not username or not password:
-                    error = AuthenticationError("Username or password is missing for basic auth")
-                    if self.error_handler:
-                        self.error_handler.handle_error(name, error, "_connect_http_server")
-                    return {"status": "error", "message": "Username or password is missing for basic auth"}
-                # In a real implementation, we would use proper basic auth
-                headers["Authorization"] = f"Basic {username}:{password}"
-            
-            # Store HTTP session for this server
+            # For HTTP servers, we'll create a mock session for now
+            # A real implementation would use proper HTTP transport with the MCP protocol
             if name not in self._http_sessions:
                 self._http_sessions[name] = aiohttp.ClientSession()
             
@@ -240,47 +215,57 @@ class MCPClientManager:
                 "error": str(e)
             }
             self.server_tools[name] = []
-            return {"status": "error", "message": str(error)}
+            return {"status": "error", "message": str(error), "tools_count": 0}
+    
+    async def disconnect_server(self, name: str) -> None:
+        """Disconnect from an MCP server."""
+        # Close stdio connection if it exists
+        if name in self._stdio_contexts:
+            try:
+                await self._stdio_contexts[name].__aexit__(None, None, None)
+            except Exception as e:
+                logger.error(f"Error closing stdio connection for {name}: {e}")
+            finally:
+                del self._stdio_contexts[name]
+        
+        # Close HTTP session if it exists
+        if name in self._http_sessions:
+            try:
+                await self._http_sessions[name].close()
+            except Exception as e:
+                logger.error(f"Error closing HTTP session for {name}: {e}")
+            finally:
+                del self._http_sessions[name]
+        
+        # Remove from sessions
+        if name in self.sessions:
+            del self.sessions[name]
+        
+        # Update server info
+        if name in self._server_info:
+            self._server_info[name]["connected"] = False
+    
+    async def disconnect_all(self) -> None:
+        """Disconnect from all MCP servers."""
+        servers = list(self.sessions.keys())
+        for name in servers:
+            await self.disconnect_server(name)
     
     async def execute_tool(self, server_name: str, tool_name: str, arguments: dict) -> Any:
-        """Execute a tool on a specific server
-        
-        Args:
-            server_name: Name of the server
-            tool_name: Name of the tool
-            arguments: Tool arguments
-            
-        Returns:
-            Tool execution result
-        """
+        """Execute a tool on a connected server."""
+        # Determine server type from config
         if server_name not in self._server_info:
-            error = ToolExecutionError(f"Server {server_name} not connected")
-            if self.error_handler:
-                self.error_handler.handle_error(server_name, error, "execute_tool")
-            raise ValueError(f"Server {server_name} not connected")
+            raise ToolExecutionError(f"Server {server_name} not connected")
         
-        server_info = self._server_info[server_name]
-        config = server_info["config"]
+        config = self._server_info[server_name].get("config", {})
         server_type = config.get("type", "stdio")
         
-        try:
-            if server_type == "stdio":
-                return await self._execute_stdio_tool(server_name, tool_name, arguments, config)
-            elif server_type in ["sse", "streamable-http"]:
-                return await self._execute_http_tool(server_name, tool_name, arguments, config)
-            else:
-                error = ToolExecutionError(f"Unsupported server type: {server_type}")
-                if self.error_handler:
-                    self.error_handler.handle_error(server_name, error, "execute_tool")
-                raise ValueError(f"Unsupported server type: {server_type}")
-                
-        except Exception as e:
-            error = ToolExecutionError(f"Failed to execute tool {tool_name} on server {server_name}: {str(e)}")
-            if self.error_handler:
-                self.error_handler.handle_error(server_name, error, "execute_tool")
-            logger.error(f"Failed to execute tool {tool_name} on server {server_name}: {e}")
-            # For testing, return a mock result
-            return {"mock": True, "tool": tool_name, "args": arguments, "error": str(e)}
+        if server_type == "stdio":
+            return await self._execute_stdio_tool(server_name, tool_name, arguments, config)
+        elif server_type in ["sse", "streamable-http"]:
+            return await self._execute_http_tool(server_name, tool_name, arguments, config)
+        else:
+            raise ToolExecutionError(f"Unsupported server type: {server_type}")
     
     async def _execute_stdio_tool(self, server_name: str, tool_name: str, arguments: dict, config: dict) -> Any:
         """Execute a tool on a stdio-based server."""
@@ -324,96 +309,3 @@ class MCPClientManager:
                 self.error_handler.handle_error(server_name, error, "_execute_http_tool")
             logger.error(f"Failed to execute tool {tool_name} on HTTP server {server_name}: {e}")
             return {"mock": True, "tool": tool_name, "args": arguments, "error": str(e)}
-    
-    async def health_check(self, server_name: str) -> Dict[str, Any]:
-        """Perform a health check on a server.
-        
-        Args:
-            server_name: Name of the server to check
-            
-        Returns:
-            Health check result
-        """
-        if server_name not in self._server_info:
-            error = HealthCheckError(f"Server {server_name} not found")
-            if self.error_handler:
-                self.error_handler.handle_error(server_name, error, "health_check")
-            return {"status": "error", "message": f"Server {server_name} not found"}
-        
-        server_info = self._server_info[server_name]
-        config = server_info["config"]
-        server_type = config.get("type", "stdio")
-        
-        try:
-            if server_type == "stdio":
-                # For stdio servers, check if the command exists
-                command = config.get("command", "")
-                if os.path.exists(command) or shutil.which(command):
-                    return {"status": "healthy", "message": "Command executable found"}
-                else:
-                    return {"status": "unhealthy", "message": "Command executable not found"}
-            elif server_type in ["sse", "streamable-http"]:
-                # For HTTP servers, perform a simple connectivity check
-                url = config.get("url", "")
-                health_endpoint = config.get("health_check", {}).get("endpoint", "/health")
-                full_url = f"{url}{health_endpoint}" if not health_endpoint.startswith("/") else f"{url.rstrip('/')}{health_endpoint}"
-                
-                if server_name in self._http_sessions:
-                    session = self._http_sessions[server_name]
-                    try:
-                        async with session.get(full_url, timeout=10) as response:
-                            if response.status == 200:
-                                return {"status": "healthy", "message": "HTTP endpoint reachable", "status_code": response.status}
-                            else:
-                                return {"status": "unhealthy", "message": f"HTTP endpoint returned status {response.status}", "status_code": response.status}
-                    except Exception as e:
-                        error = HealthCheckError(f"HTTP connectivity failed: {str(e)}")
-                        if self.error_handler:
-                            self.error_handler.handle_error(server_name, error, "health_check")
-                        return {"status": "unhealthy", "message": f"HTTP connectivity failed: {str(e)}"}
-                else:
-                    return {"status": "unknown", "message": "No active HTTP session"}
-            else:
-                error = HealthCheckError(f"Unsupported server type: {server_type}")
-                if self.error_handler:
-                    self.error_handler.handle_error(server_name, error, "health_check")
-                return {"status": "error", "message": f"Unsupported server type: {server_type}"}
-                
-        except Exception as e:
-            error = HealthCheckError(f"Health check failed for server {server_name}: {str(e)}")
-            if self.error_handler:
-                self.error_handler.handle_error(server_name, error, "health_check")
-            logger.error(f"Health check failed for server {server_name}: {e}")
-            return {"status": "error", "message": f"Health check failed: {str(e)}"}
-    
-    async def disconnect_all(self) -> None:
-        """Disconnect all active sessions"""
-        server_names = list(self._server_info.keys())
-        for name in server_names:
-            await self.disconnect_server(name)
-    
-    async def disconnect_server(self, name: str) -> Dict[str, Any]:
-        """Disconnect a specific server
-        
-        Args:
-            name: Server name to disconnect
-        """
-        try:
-            if name in self._server_info:
-                del self._server_info[name]
-                if name in self.server_tools:
-                    del self.server_tools[name]
-            
-            # Close HTTP session if it exists
-            if name in self._http_sessions:
-                await self._http_sessions[name].close()
-                del self._http_sessions[name]
-                
-            return {"status": "success", "message": f"Disconnected server {name}"}
-            
-        except Exception as e:
-            error = ConnectionError(f"Failed to disconnect server {name}: {str(e)}")
-            if self.error_handler:
-                self.error_handler.handle_error(name, error, "disconnect_server")
-            logger.error(f"Failed to disconnect server {name}: {e}")
-            return {"status": "error", "message": str(e)}

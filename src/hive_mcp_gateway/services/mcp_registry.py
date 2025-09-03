@@ -4,7 +4,7 @@ import json
 import yaml
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 import aiofiles
 
@@ -24,102 +24,58 @@ logger = logging.getLogger(__name__)
 class MCPServerRegistry:
     """Manages MCP server configurations with support for enhanced features"""
 
-    def __init__(self, config_path: str = "mcp-servers.json"):
-        self.config_path = Path(config_path)
-        self._servers: dict[str, MCPServerConfig] = {}
-        self._server_status: dict[str, ServerStatus] = {}
+    def __init__(self, config_path: str = "config/tool_gating_config.yaml"):
+        # Determine the absolute path to the config file
+        self.config_path = Path(__file__).parent.parent.parent / config_path
+        logger.info(f"Attempting to load MCP server configuration from: {self.config_path}")
+        self._servers: Dict[str, MCPServerConfig] = {}
+        self._server_status: Dict[str, ServerStatus] = {}
         self._connected_servers: set[str] = set()
-        self._load_config()
+        self.load_servers()
 
-    def _load_config(self) -> None:
-        """Load server configurations from file"""
-        if self.config_path.exists():
-            try:
-                # Read file content
-                with open(self.config_path, 'r') as f:
-                    if self.config_path.suffix.lower() in ['.yaml', '.yml']:
-                        data = yaml.safe_load(f)
-                    else:
-                        data = json.load(f)
-                
-                # Process each server configuration
-                for name, config in data.items():
-                    self._servers[name] = MCPServerConfig(**config)
-                    # Initialize status for existing servers
-                    self._server_status[name] = ServerStatus(
-                        name=name,
-                        enabled=True,
-                        connected=False
-                    )
-                    
-                logger.info(f"Loaded {len(self._servers)} servers from {self.config_path}")
-                
-            except Exception as e:
-                logger.error(f"Failed to load configuration from {self.config_path}: {e}")
-                # Initialize with empty configuration
-                self._servers = {}
-                self._server_status = {}
-
-    async def save_config(self, format: str = "auto") -> None:
-        """Save current configurations to file in specified format"""
+    def load_servers(self):
         try:
-            data = {
-                name: config.model_dump(exclude_none=True)
-                for name, config in self._servers.items()
-            }
+            with open(self.config_path, "r") as f:
+                config_data = yaml.safe_load(f)
+                
+                # Correctly iterate over the dictionary items
+                server_configs_raw = config_data.get("backendMcpServers", {})
+                server_configs = {name: BackendServerConfig(**data) for name, data in server_configs_raw.items()}
+                
+                self._servers.clear()
+                self._server_status.clear()
 
-            # Determine format based on file extension or parameter
-            if format == "auto":
-                if self.config_path.suffix.lower() in ['.yaml', '.yml']:
-                    format = "yaml"
-                else:
-                    format = "json"
+                for name, config in server_configs.items():
+                    mcp_config = self._convert_backend_config_to_mcp(config)
+                    self._servers[name] = mcp_config
+                    
+                    server_status = ServerStatus(
+                        name=name,
+                        enabled=config.enabled,
+                        connected=False,
+                        health_status="unknown",
+                        tool_count=0
+                    )
+                    if config.metadata:
+                        if config.metadata.tags:
+                            server_status.tags = config.metadata.tags
+                    self._server_status[name] = server_status
 
-            # Write to file
-            async with aiofiles.open(self.config_path, "w") as f:
-                if format == "yaml":
-                    yaml_content = yaml.dump(data, default_flow_style=False, indent=2)
-                    await f.write(yaml_content)
-                else:
-                    json_content = json.dumps(data, indent=2)
-                    await f.write(json_content)
+                logger.info(f"Successfully loaded {len(self._servers)} MCP servers.")
+                logger.info(f"Loaded server names: {list(self._servers.keys())}")
 
-            logger.info(f"Saved {len(self._servers)} servers to {self.config_path}")
-            
+        except FileNotFoundError:
+            logger.error(f"MCP server configuration file not found at: {self.config_path}")
+            self._servers = {}
+            self._server_status = {}
         except Exception as e:
-            logger.error(f"Failed to save configuration to {self.config_path}: {e}")
-            raise
+            logger.error(f"Error loading MCP server configuration: {e}")
+            self._servers = {}
+            self._server_status = {}
 
-    async def register_server(
-        self, registration: MCPServerRegistration
-    ) -> dict[str, str]:
-        """Register a new MCP server"""
-        if registration.name in self._servers:
-            return {
-                "status": "error",
-                "message": f"Server '{registration.name}' already exists",
-            }
-
-        self._servers[registration.name] = registration.config
-        
-        # Initialize server status
-        self._server_status[registration.name] = ServerStatus(
-            name=registration.name,
-            enabled=True,
-            connected=False,
-            health_status="unknown"
-        )
-        
-        await self.save_config()
-
-        return {
-            "status": "success",
-            "message": f"Server '{registration.name}' registered successfully",
-        }
-
-    async def get_server(self, name: str) -> MCPServerConfig | None:
+    def get_server(self, server_name: str) -> Optional[MCPServerConfig]:
         """Get a server configuration by name"""
-        return self._servers.get(name)
+        return self._servers.get(server_name)
 
     async def list_servers(self) -> list[str]:
         """List all registered server names"""
@@ -131,17 +87,10 @@ class MCPServerRegistry:
             return {"status": "error", "message": f"Server '{name}' not found"}
 
         del self._servers[name]
-        
-        # Remove server status
         if name in self._server_status:
             del self._server_status[name]
-            
-        # Remove from connected servers
-        if name in self._connected_servers:
-            self._connected_servers.discard(name)
+        self._connected_servers.discard(name)
         
-        await self.save_config()
-
         return {"status": "success", "message": f"Server '{name}' removed successfully"}
 
     async def update_server(self, name: str, config: MCPServerConfig) -> dict[str, str]:
@@ -150,8 +99,7 @@ class MCPServerRegistry:
             return {"status": "error", "message": f"Server '{name}' not found"}
 
         self._servers[name] = config
-        await self.save_config()
-
+        
         return {"status": "success", "message": f"Server '{name}' updated successfully"}
 
     # Enhanced methods for dynamic configuration management with health checks
@@ -170,21 +118,18 @@ class MCPServerRegistry:
                 name=name,
                 enabled=config.enabled,
                 connected=False,
-                health_status="unknown",
+                health_status="unknown", # Ensure this is one of the literal values
                 tool_count=0
             )
             
             # Add metadata if available
             if config.metadata:
-                if config.metadata.description:
-                    server_status.description = config.metadata.description
                 if config.metadata.tags:
                     server_status.tags = config.metadata.tags
             
             self._server_status[name] = server_status
             
             logger.info(f"Registered server from config: {name}")
-            await self.save_config()
             
             return {
                 "status": "success",
@@ -205,16 +150,10 @@ class MCPServerRegistry:
         try:
             if name in self._servers:
                 del self._servers[name]
-            
             if name in self._server_status:
                 del self._server_status[name]
+            self._connected_servers.discard(name)
                 
-            if name in self._connected_servers:
-                self._connected_servers.discard(name)
-                
-            logger.info(f"Unregistered server: {name}")
-            await self.save_config()
-            
             return {
                 "status": "success",
                 "message": f"Server '{name}' unregistered successfully"
@@ -247,8 +186,6 @@ class MCPServerRegistry:
                 
                 # Update metadata if available
                 if config.metadata:
-                    if config.metadata.description:
-                        server_status.description = config.metadata.description
                     if config.metadata.tags:
                         server_status.tags = config.metadata.tags
             else:
@@ -257,21 +194,18 @@ class MCPServerRegistry:
                     name=name,
                     enabled=config.enabled,
                     connected=False,
-                    health_status="unknown",
+                    health_status="unknown", # Ensure this is one of the literal values
                     tool_count=0
                 )
                 
                 # Add metadata if available
                 if config.metadata:
-                    if config.metadata.description:
-                        server_status.description = config.metadata.description
                     if config.metadata.tags:
                         server_status.tags = config.metadata.tags
                 
                 self._server_status[name] = server_status
             
             logger.info(f"Updated server config: {name}")
-            await self.save_config()
             
             return {
                 "status": "success",
@@ -349,7 +283,7 @@ class MCPServerRegistry:
         if name in self._server_status:
             self._server_status[name].error_message = error_message
     
-    def update_server_health_status(self, name: str, health_status: str, last_check: Optional[str] = None) -> None:
+    def update_server_health_status(self, name: str, health_status: Literal["healthy", "unhealthy", "unknown"], last_check: Optional[str] = None) -> None:
         """Update the health status of a server."""
         if name in self._server_status:
             self._server_status[name].health_status = health_status
@@ -358,12 +292,18 @@ class MCPServerRegistry:
     
     def _convert_backend_config_to_mcp(self, config: BackendServerConfig) -> MCPServerConfig:
         """Convert BackendServerConfig to MCPServerConfig format."""
+        
+        # MCPServerConfig does not have a description parameter, remove this variable
+        # description = ""
+        # if config.metadata and config.metadata.description:
+        #     description = config.metadata.description
+
         if config.type == "stdio":
             return MCPServerConfig(
                 command=config.command or "",
                 args=config.args or [],
                 env=config.env or {},
-                description=config.description or ""
+                # description=description # Remove this line
             )
         else:
             # For HTTP-based servers, we'll need to handle them differently
@@ -372,7 +312,7 @@ class MCPServerRegistry:
                 command=f"http-{config.type}",
                 args=[config.url or ""],
                 env=config.headers or {},
-                description=config.description or ""
+                # description=description # Remove this line
             )
 
 
@@ -461,7 +401,7 @@ class MCPDiscoveryService:
             "server_type": server_type,
             "capabilities": capabilities,
             "tool_categories": list(tool_categories),
-            "has_authentication": any("authenticated" in capabilities),
+            "has_authentication": "authenticated" in capabilities, # This was already correct
             "estimated_complexity": len(config.args) + len(config.env),
         }
 

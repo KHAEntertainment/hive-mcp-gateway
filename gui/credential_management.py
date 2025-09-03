@@ -1,7 +1,8 @@
 """Credential management GUI for Hive MCP Gateway with ENV/Secrets tabs."""
 
+import json
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any, List, Set
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -9,9 +10,9 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QPushButton, QLineEdit, QLabel, QTextEdit,
     QMessageBox, QInputDialog, QGroupBox, QCheckBox, QComboBox,
     QSplitter, QFrame, QHeaderView, QAbstractItemView, QDialog,
-    QDialogButtonBox, QFormLayout, QSpinBox
+    QDialogButtonBox, QFormLayout, QSpinBox, QListWidget, QListWidgetItem
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QPainter, QBrush, QColor
 
 from hive_mcp_gateway.services.credential_manager import (
@@ -24,17 +25,37 @@ logger = logging.getLogger(__name__)
 class AddCredentialDialog(QDialog):
     """Dialog for adding or editing credentials."""
     
-    def __init__(self, parent=None, credential: Optional[CredentialEntry] = None):
+    def __init__(self, parent=None, credential: Optional[CredentialEntry] = None, config_manager=None):
         super().__init__(parent)
         self.credential = credential
+        self.config_manager = config_manager
         self.setWindowTitle("Add Credential" if credential is None else "Edit Credential")
         self.setModal(True)
-        self.resize(500, 300)
+        self.resize(500, 380)  # Increased height to accommodate server selection
         
+        self.load_stylesheet()
         self.setup_ui()
         
         if credential:
             self.load_credential()
+    
+    def load_stylesheet(self):
+        """Load and apply the Hive Night theme stylesheet."""
+        try:
+            # Try to load from absolute path first
+            stylesheet_path = Path(__file__).parent / "assets" / "styles.qss"
+            
+            # If not found, try relative path
+            if not stylesheet_path.exists():
+                stylesheet_path = "gui/assets/styles.qss"
+                
+            with open(stylesheet_path, "r") as f:
+                stylesheet = f.read()
+                self.setStyleSheet(stylesheet)
+        except FileNotFoundError:
+            logger.warning("Stylesheet not found")
+        except Exception as e:
+            logger.error(f"Error loading stylesheet: {e}")
     
     def setup_ui(self):
         """Setup the dialog UI."""
@@ -59,6 +80,28 @@ class AddCredentialDialog(QDialog):
         self.type_combo.addItems(["Auto-detect", "Environment Variable", "Secret (Keyring)"])
         self.type_combo.currentTextChanged.connect(self.on_type_changed)
         form_layout.addRow("Storage Type:", self.type_combo)
+        
+        # Server association
+        server_widget = QWidget()
+        server_layout = QVBoxLayout(server_widget)
+        server_layout.setContentsMargins(0, 0, 0, 0)
+        
+        server_label = QLabel("Server Association:")
+        server_label.setToolTip("Select which MCP servers can use this credential")
+        server_layout.addWidget(server_label)
+        
+        self.server_list = QListWidget()
+        self.server_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        server_layout.addWidget(self.server_list)
+        
+        # Add SYSTEM option
+        system_item = QListWidgetItem("SYSTEM (Hive MCP Gateway)")
+        self.server_list.addItem(system_item)
+        
+        # Load servers from config if available
+        self.load_server_list()
+        
+        form_layout.addRow("", server_widget)
         
         # Description field
         self.description_edit = QTextEdit()
@@ -91,21 +134,6 @@ class AddCredentialDialog(QDialog):
         self.key_edit.textChanged.connect(self.update_preview)
         self.value_edit.textChanged.connect(self.update_preview)
     
-    def load_credential(self):
-        """Load existing credential data."""
-        if not self.credential:
-            return
-        
-        self.key_edit.setText(self.credential.key)
-        self.value_edit.setText(self.credential.value)
-        self.description_edit.setPlainText(self.credential.description or "")
-        
-        # Set type
-        if self.credential.credential_type == CredentialType.SECRET:
-            self.type_combo.setCurrentText("Secret (Keyring)")
-        elif self.credential.credential_type == CredentialType.ENVIRONMENT:
-            self.type_combo.setCurrentText("Environment Variable")
-    
     def on_type_changed(self):
         """Handle type selection change."""
         self.update_preview()
@@ -127,7 +155,7 @@ class AddCredentialDialog(QDialog):
         
         if self.type_combo.currentText() == "Auto-detect":
             detected_type = "Secret (Keyring)" if is_sensitive else "Environment Variable"
-            self.preview_label.setText(f"Auto-detected as: {detected_type}\\nReason: {reason}")
+            self.preview_label.setText(f"Auto-detected as: {detected_type}\nReason: {reason}")
             
             if is_sensitive:
                 self.preview_label.setStyleSheet("color: #d32f2f; font-weight: bold;")
@@ -137,6 +165,50 @@ class AddCredentialDialog(QDialog):
             selected_type = self.type_combo.currentText()
             self.preview_label.setText(f"Manual selection: {selected_type}")
             self.preview_label.setStyleSheet("color: #1976d2; font-weight: bold;")
+    
+    def load_server_list(self):
+        """Load MCP server list from config manager."""
+        if not self.config_manager:
+            return
+            
+        try:
+            servers = self.config_manager.get_backend_servers()
+            
+            for server_name in servers.keys():
+                item = QListWidgetItem(server_name)
+                self.server_list.addItem(item)
+                
+        except Exception as e:
+            logger.error(f"Failed to load server list: {e}")
+            
+    def load_credential(self):
+        """Load existing credential data."""
+        if not self.credential:
+            return
+        
+        self.key_edit.setText(self.credential.key)
+        self.value_edit.setText(self.credential.value)
+        self.description_edit.setPlainText(self.credential.description or "")
+        
+        # Set type
+        if self.credential.credential_type == CredentialType.SECRET:
+            self.type_combo.setCurrentText("Secret (Keyring)")
+        elif self.credential.credential_type == CredentialType.ENVIRONMENT:
+            self.type_combo.setCurrentText("Environment Variable")
+            
+        # Select servers in list
+        if hasattr(self.credential, 'server_ids') and self.credential.server_ids and self.server_list is not None:
+            for i in range(self.server_list.count()):
+                item = self.server_list.item(i)
+                if item is None:
+                    continue
+                    
+                if item.text() == "SYSTEM (Hive MCP Gateway)":
+                    # Select SYSTEM if no server IDs (legacy behavior)
+                    if not self.credential.server_ids:
+                        item.setSelected(True)
+                elif item.text() in self.credential.server_ids:
+                    item.setSelected(True)
     
     def get_credential_data(self) -> Dict[str, Any]:
         """Get the credential data from the form."""
@@ -154,11 +226,20 @@ class AddCredentialDialog(QDialog):
             credential_type = CredentialType.SECRET
         # Auto-detect leaves credential_type as None
         
+        # Get selected servers
+        server_ids = set()
+        for item in self.server_list.selectedItems():
+            text = item.text()
+            # Skip the SYSTEM option when building server_ids
+            if text != "SYSTEM (Hive MCP Gateway)":
+                server_ids.add(text)
+        
         return {
             "key": key,
             "value": value,
             "credential_type": credential_type,
-            "description": description
+            "description": description,
+            "server_ids": server_ids
         }
 
 
@@ -178,10 +259,7 @@ class CredentialTableWidget(QTableWidget):
     def setup_table(self):
         """Setup the table structure."""
         # Column setup
-        if self.credential_type == CredentialType.SECRET:
-            columns = ["Key", "Value", "Description", "Actions"]
-        else:
-            columns = ["Key", "Value", "Description", "Actions"]
+        columns = ["Key", "Value", "Description", "Server", "Actions"]
         
         self.setColumnCount(len(columns))
         self.setHorizontalHeaderLabels(columns)
@@ -196,11 +274,13 @@ class CredentialTableWidget(QTableWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # Key
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Value
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Description
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)  # Actions
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)  # Server
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)  # Actions
         
         # Set column widths
         self.setColumnWidth(0, 150)  # Key
-        self.setColumnWidth(3, 100)  # Actions
+        self.setColumnWidth(3, 120)  # Server
+        self.setColumnWidth(4, 100)  # Actions
     
     def setup_context_menu(self):
         """Setup context menu."""
@@ -317,7 +397,8 @@ class CredentialTableWidget(QTableWidget):
     
     def edit_credential(self, credential: CredentialEntry):
         """Edit a credential."""
-        dialog = AddCredentialDialog(self, credential)
+        # Pass the config_manager directly from this widget
+        dialog = AddCredentialDialog(self, credential, config_manager=self.config_manager)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_credential_data()
             
@@ -334,7 +415,8 @@ class CredentialTableWidget(QTableWidget):
                     # Set new credential
                     self.credential_manager.set_credential(
                         data["key"], data["value"],
-                        data["credential_type"], data["description"]
+                        data["credential_type"], data["description"],
+                        data["server_ids"]
                     )
                     
                     self.credential_changed.emit()
@@ -371,53 +453,102 @@ class CredentialTableWidget(QTableWidget):
                 description = f"[Auto] {description}"
             self.setItem(row, 2, QTableWidgetItem(description))
             
+            # Server associations
+            if hasattr(credential, 'server_ids') and credential.server_ids:
+                server_text = ", ".join(sorted(credential.server_ids))
+            else:
+                server_text = "SYSTEM"
+                
+            server_item = QTableWidgetItem(server_text)
+            if server_text == "SYSTEM":
+                server_item.setToolTip("Global credential for Hive MCP Gateway")
+            self.setItem(row, 3, server_item)
+            
             # Actions (placeholder)
-            self.setItem(row, 3, QTableWidgetItem("Edit | Delete"))
+            self.setItem(row, 4, QTableWidgetItem("Edit | Delete"))
 
 
 class CredentialManagementWidget(QWidget):
     """Main credential management widget with tabbed interface."""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config_manager=None):
         super().__init__(parent)
         self.credential_manager = CredentialManager()
+        self.config_manager = config_manager
         
+        self.load_stylesheet()
         self.setup_ui()
         self.load_credentials()
         
         # Validate keyring access
         self.validate_keyring()
     
+    def load_stylesheet(self):
+        """Load and apply the Hive Night theme stylesheet."""
+        try:
+            # Try to load from absolute path first
+            stylesheet_path = Path(__file__).parent / "assets" / "styles.qss"
+            
+            # If not found, try relative path
+            if not stylesheet_path.exists():
+                stylesheet_path = "gui/assets/styles.qss"
+                
+            with open(stylesheet_path, "r") as f:
+                stylesheet = f.read()
+                self.setStyleSheet(stylesheet)
+        except FileNotFoundError:
+            logger.warning("Stylesheet not found")
+        except Exception as e:
+            logger.error(f"Error loading stylesheet: {e}")
+    
     def setup_ui(self):
         """Setup the main UI."""
         layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(15, 15, 15, 15)
         
         # Header
         header_layout = QHBoxLayout()
         
         title = QLabel("Credential Management")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px;")
+        title.setObjectName("headerLabel")
         header_layout.addWidget(title)
         
         header_layout.addStretch()
         
         # Action buttons
         self.add_btn = QPushButton("Add Credential")
+        self.add_btn.setObjectName("addButton")
         self.add_btn.clicked.connect(self.add_credential)
         header_layout.addWidget(self.add_btn)
         
         self.import_btn = QPushButton("Import from JSON")
+        self.import_btn.setObjectName("importButton")
         self.import_btn.clicked.connect(self.import_credentials)
         header_layout.addWidget(self.import_btn)
         
         self.export_btn = QPushButton("Export All")
+        self.export_btn.setObjectName("exportButton")
         self.export_btn.clicked.connect(self.export_credentials)
         header_layout.addWidget(self.export_btn)
         
         layout.addLayout(header_layout)
         
+        # Intro text
+        intro_label = QLabel("Secrets are stored securely via the OS's secret store. Environment variables are passed through to the MCP configuration for easy maintenance/changes.")
+        intro_label.setObjectName("introLabel")
+        intro_label.setWordWrap(True)
+        layout.addWidget(intro_label)
+        
+        # Question about mapping
+        question_label = QLabel("The system uses key matching to determine which ENV's/Secrets belong to which MCP entry. The Auto-Detect ENV's/Secrets feature is implemented - when you use the Add MCP Server wizard, it will auto-detect and add them to the credentials section.")
+        question_label.setObjectName("descriptionLabel")
+        question_label.setWordWrap(True)
+        layout.addWidget(question_label)
+        
         # Tab widget
         self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("credentialTabs")
         
         # Environment variables tab
         self.env_table = CredentialTableWidget(CredentialType.ENVIRONMENT)
@@ -435,12 +566,13 @@ class CredentialManagementWidget(QWidget):
         status_layout = QHBoxLayout()
         
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet("color: #666; font-style: italic;")
+        self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label)
         
         status_layout.addStretch()
         
         self.keyring_status = QLabel("Keyring: Unknown")
+        self.keyring_status.setObjectName("keyringStatusLabel")
         status_layout.addWidget(self.keyring_status)
         
         layout.addLayout(status_layout)
@@ -478,7 +610,7 @@ class CredentialManagementWidget(QWidget):
     
     def add_credential(self):
         """Add a new credential."""
-        dialog = AddCredentialDialog(self)
+        dialog = AddCredentialDialog(self, config_manager=self.config_manager)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_credential_data()
             
@@ -489,7 +621,8 @@ class CredentialManagementWidget(QWidget):
             try:
                 self.credential_manager.set_credential(
                     data["key"], data["value"],
-                    data["credential_type"], data["description"]
+                    data["credential_type"], data["description"],
+                    data["server_ids"]
                 )
                 
                 self.load_credentials()

@@ -66,18 +66,26 @@
 ## Phase 2: Advanced Proxy Features (v0.4.0) 🎯
 
 ### 2.1 Authentication Support
-- [ ] API key management for servers that require auth
-- [ ] Secure credential storage
-- [ ] Per-server authentication configuration
-- [ ] OAuth support for compatible servers
+- [x] API key management for servers that require auth
+- [x] Secure credential storage
+- [x] Per-server authentication configuration
+- [x] OAuth support for compatible servers
 
-### 2.2 Enhanced Performance
+### 2.2 Cross-Platform Support
+- [x] macOS auto-start (Launch Agents) - **COMPLETED**
+- [ ] Windows auto-start implementation (Registry/Startup folder)
+- [ ] Linux auto-start implementation (Desktop entries/systemd)
+- [ ] Cross-platform credential storage testing
+- [ ] Platform-specific GUI adaptations
+- [ ] Windows/Linux system tray behavior optimization
+
+### 2.3 Enhanced Performance
 - [ ] Lazy connection initialization
 - [ ] Tool result caching
 - [ ] Parallel tool execution
 - [ ] Connection health monitoring
 
-### 2.3 Dynamic Server Management
+### 2.4 Dynamic Server Management
 - [ ] Add/remove servers without restart
 - [ ] Hot-reload server configurations
 - [ ] Server health checks and auto-reconnect

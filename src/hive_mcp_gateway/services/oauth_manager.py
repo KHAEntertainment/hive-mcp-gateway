@@ -15,10 +15,26 @@ import base64
 from oauthlib.oauth2 import WebApplicationClient
 from requests_oauthlib import OAuth2Session
 import requests
+from pydantic import BaseModel, Field
 
 from .credential_manager import CredentialManager, CredentialType
 
 logger = logging.getLogger(__name__)
+
+
+class OAuthConfig(BaseModel):
+    """OAuth configuration for a service."""
+    client_id: str
+    client_secret: Optional[str]
+    authorization_url: str
+    token_url: str
+    scope: List[str]
+    redirect_uri: str
+    service_name: str
+    host: str = "localhost"
+    port: int = 8001
+    use_pkce: bool = True
+    extra_params: Optional[Dict[str, Any]] = None
 
 
 class OAuthFlowState(Enum):
@@ -29,20 +45,6 @@ class OAuthFlowState(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     EXPIRED = "expired"
-
-
-@dataclass
-class OAuthConfig:
-    """OAuth configuration for a service."""
-    client_id: str
-    client_secret: Optional[str]
-    authorization_url: str
-    token_url: str
-    scope: List[str]
-    redirect_uri: str
-    service_name: str
-    use_pkce: bool = True
-    extra_params: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -188,6 +190,31 @@ class OAuthManager:
             }
         )
     
+    def initiate_custom_flow(self, service_name: str, client_id: str, client_secret: Optional[str], auth_url: str, token_url: str, scope: List[str]) -> OAuthFlow:
+        """
+        Initiate an OAuth flow with a custom configuration.
+        
+        Args:
+            service_name: Name of the service
+            client_id: OAuth client ID
+            client_secret: OAuth client secret
+            auth_url: Authorization URL
+            token_url: Token URL
+            scope: List of scopes
+            
+        Returns:
+            OAuthFlow object with authorization URL
+        """
+        custom_config = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "authorization_url": auth_url,
+            "token_url": token_url,
+            "scope": scope
+        }
+        self.configure_service(service_name, client_id, client_secret, custom_config)
+        return self.initiate_oauth_flow(service_name)
+    
     def add_flow_callback(self, callback: Callable[[OAuthFlow], None]):
         """Add a callback for flow state changes."""
         self.flow_callbacks.append(callback)
@@ -259,7 +286,7 @@ class OAuthManager:
             logger.error(f"Failed to configure OAuth for {service_name}: {e}")
             return False
     
-    def initiate_flow(self, service_name: str, custom_scope: Optional[List[str]] = None) -> OAuthFlow:
+    def initiate_oauth_flow(self, service_name: str, custom_scope: Optional[List[str]] = None) -> OAuthFlow:
         """
         Initiate an OAuth flow for a service.
         
@@ -650,7 +677,7 @@ class OAuthManager:
             elif status["status"] in ["expired", "expiring_soon"] and status["has_refresh_token"]:
                 # Try to refresh
                 refresh_result = self.refresh_token(service_name)
-                if refresh_result.success:
+                if refresh_result.success and refresh_result.token_data:
                     return refresh_result.token_data["access_token"]
                 else:
                     logger.warning(f"Failed to refresh token for {service_name}: {refresh_result.error}")

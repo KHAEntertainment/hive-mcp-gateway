@@ -1,49 +1,113 @@
 {
   "toolGating": {
-    "port": 8001,
+    "port": 8002,
     "host": "0.0.0.0",
     "logLevel": "info",
     "autoDiscover": true,
     "maxTokensPerRequest": 2000,
     "maxToolsPerRequest": 10,
-    "configWatchEnabled": true
+    "configWatchEnabled": true,
+    "healthCheckInterval": 30,
+    "connectionTimeout": 10
   },
   "backendMcpServers": {
     "context7": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.context7.com/mcp"
+      ],
       "env": {},
-      "description": "Documentation search and library information",
+      "url": null,
+      "headers": null,
+      "description": null,
       "enabled": true,
-      "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": []
-        },
-        "timeout": 30,
-        "retryCount": 3
-      }
+      "authentication": {
+        "config": {
+          "type": "none"
+        }
+      },
+      "healthCheck": {
+        "enabled": true,
+        "interval": 60,
+        "endpoint": null,
+        "timeout": 10
+      },
+      "metadata": {
+        "category": null,
+        "version": null,
+        "tags": [],
+        "description": null
+      },
+      "options": null
     },
     "basic_memory": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["basic-memory", "mcp"],
+      "args": [
+        "basic-memory",
+        "mcp"
+      ],
       "env": {},
+      "url": null,
+      "headers": null,
       "description": "Simple key-value memory storage",
       "enabled": true,
+      "authentication": {
+        "config": {
+          "type": "none"
+        }
+      },
+      "healthCheck": {
+        "enabled": true,
+        "interval": 60,
+        "endpoint": null,
+        "timeout": 10
+      },
+      "metadata": {
+        "category": null,
+        "version": null,
+        "tags": [],
+        "description": null
+      },
       "options": {
+        "toolFilter": null,
         "timeout": 15,
-        "retryCount": 2
+        "retryCount": 2,
+        "batchSize": 10
       }
     },
     "puppeteer": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ],
       "env": {},
+      "url": null,
+      "headers": null,
       "description": "Browser automation and web scraping - High tool count server",
       "enabled": true,
+      "authentication": {
+        "config": {
+          "type": "none"
+        }
+      },
+      "healthCheck": {
+        "enabled": true,
+        "interval": 60,
+        "endpoint": null,
+        "timeout": 10
+      },
+      "metadata": {
+        "category": null,
+        "version": null,
+        "tags": [],
+        "description": null
+      },
       "options": {
         "toolFilter": {
           "mode": "allow",
@@ -70,8 +134,27 @@
       "env": {
         "EXA_API_KEY": "${EXA_API_KEY}"
       },
+      "url": null,
+      "headers": null,
       "description": "Web search, research, and social media tools - High tool count server with 100+ tools",
       "enabled": true,
+      "authentication": {
+        "config": {
+          "type": "none"
+        }
+      },
+      "healthCheck": {
+        "enabled": true,
+        "interval": 60,
+        "endpoint": null,
+        "timeout": 10
+      },
+      "metadata": {
+        "category": null,
+        "version": null,
+        "tags": [],
+        "description": null
+      },
       "options": {
         "toolFilter": {
           "mode": "allow",
@@ -89,6 +172,38 @@
         "retryCount": 3,
         "batchSize": 10
       }
+    },
+    "Ref": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "ref-tools-mcp@latest"
+      ],
+      "env": {
+        "REF_API_KEY": "1418ed51634694ef65e1"
+      },
+      "url": null,
+      "headers": null,
+      "description": null,
+      "enabled": true,
+      "authentication": {
+        "config": {
+          "type": "none"
+        }
+      },
+      "healthCheck": {
+        "enabled": true,
+        "interval": 60,
+        "endpoint": null,
+        "timeout": 10
+      },
+      "metadata": {
+        "category": null,
+        "version": null,
+        "tags": [],
+        "description": null
+      },
+      "options": null
     }
   }
 }

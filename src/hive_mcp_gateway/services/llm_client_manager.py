@@ -45,6 +45,7 @@ class LLMConfig:
     name: str
     base_url: str
     auth_method: AuthMethod
+    preferred_auth_method: Optional[AuthMethod] = None
     api_key_header: str = "Authorization"
     api_key_prefix: str = "Bearer"
     auth_config: Dict[str, Any] = field(default_factory=dict)
@@ -63,6 +64,7 @@ class LLMConfig:
             "name": self.name,
             "base_url": self.base_url,
             "auth_method": self.auth_method.value,
+            "preferred_auth_method": self.preferred_auth_method.value if self.preferred_auth_method else None,
             "api_key_header": self.api_key_header,
             "api_key_prefix": self.api_key_prefix,
             "auth_config": self.auth_config,
@@ -123,10 +125,11 @@ class RateLimitInfo:
 class LLMClient:
     """Client for a specific LLM provider."""
     
-    def __init__(self, config: LLMConfig, oauth_manager: OAuthManager, credential_manager: CredentialManager):
+    def __init__(self, config: LLMConfig, oauth_manager: OAuthManager, credential_manager: CredentialManager, client_manager: 'LLMClientManager'):
         self.config = config
         self.oauth_manager = oauth_manager
         self.credential_manager = credential_manager
+        self.client_manager = client_manager
         self.rate_limit = RateLimitInfo()
         
         # Create HTTP client
@@ -143,22 +146,21 @@ class LLMClient:
         
         if self.config.auth_method == AuthMethod.API_KEY:
             # Get API key from credentials
-            api_key_name = f"{self.config.name}_api_key"
-            credential = self.credential_manager.get_credential(api_key_name)
+            credentials = self.client_manager.get_llm_credentials(self.config.name)
             
-            if not credential:
-                raise ValueError(f"API key not found for {self.config.name}. Please configure: {api_key_name}")
+            if not credentials or "api_key" not in credentials:
+                raise ValueError(f"API key not found for {self.config.name}. Please configure.")
             
-            headers[self.config.api_key_header] = f"{self.config.api_key_prefix} {credential.value}"
+            headers[self.config.api_key_header] = f"{self.config.api_key_prefix} {credentials['api_key']}"
             
         elif self.config.auth_method == AuthMethod.OAUTH:
             # Get OAuth token
-            token = self.oauth_manager.get_valid_token(self.config.name)
+            credentials = self.client_manager.get_llm_credentials(self.config.name)
             
-            if not token:
+            if not credentials or "access_token" not in credentials:
                 raise ValueError(f"OAuth token not available for {self.config.name}. Please authenticate.")
             
-            headers["Authorization"] = f"Bearer {token}"
+            headers["Authorization"] = f"Bearer {credentials['access_token']}"
             
         elif self.config.auth_method == AuthMethod.BEARER_TOKEN:
             # Get bearer token from credentials
@@ -465,6 +467,47 @@ class LLMClientManager:
         self._load_default_configs()
         
         logger.info("Initialized LLM Client Manager")
+
+    def get_llm_credentials(self, provider: str) -> Optional[Dict[str, Any]]:
+        """Get LLM credentials with fallback strategy"""
+        config = self.configs.get(provider)
+        if not config:
+            return None
+
+        prefer_piggyback = config.preferred_auth_method == AuthMethod.OAUTH
+        
+        # First try piggybacking if preferred and available
+        if prefer_piggyback:
+            piggyback_creds = self._get_piggyback_credentials(provider)
+            if piggyback_creds:
+                return piggyback_creds
+        
+        # Fallback to direct API key configuration
+        return self._get_direct_api_credentials(provider)
+
+    def _get_piggyback_credentials(self, provider: str) -> Optional[Dict[str, Any]]:
+        """Attempt to piggyback on existing desktop client credentials"""
+        if provider == "claude_code":
+            from .claude_code_sdk import ClaudeCodeSDK
+            claude_sdk = ClaudeCodeSDK(self.credential_manager)
+            credentials = claude_sdk.get_credentials()
+            return credentials.to_dict() if credentials else None
+        elif provider == "gemini_cli":
+            from .gemini_cli_sdk import GeminiCLISDK
+            gemini_sdk = GeminiCLISDK(self.credential_manager)
+            credentials = gemini_sdk.get_credentials()
+            return credentials.to_dict() if credentials else None
+        return None
+
+    def _get_direct_api_credentials(self, provider: str) -> Optional[Dict[str, Any]]:
+        """Get directly configured API keys"""
+        config = self.configs.get(provider)
+        if config and config.auth_method == AuthMethod.API_KEY:
+            api_key_name = f"{config.name}_api_key"
+            credential = self.credential_manager.get_credential(api_key_name)
+            if credential:
+                return {"api_key": credential.value}
+        return None
     
     def _load_default_configs(self):
         """Load default LLM provider configurations."""
@@ -524,7 +567,7 @@ class LLMClientManager:
             
             # Initialize client if enabled
             if config.enabled:
-                self.clients[config.name] = LLMClient(config, self.oauth_manager, self.credential_manager)
+                self.clients[config.name] = LLMClient(config, self.oauth_manager, self.credential_manager, self)
             
             logger.info(f"Added LLM provider: {config.name}")
             return True
@@ -578,7 +621,7 @@ class LLMClientManager:
             
             # Initialize client if enabled
             if new_config.enabled:
-                self.clients[new_config.name] = LLMClient(new_config, self.oauth_manager, self.credential_manager)
+                self.clients[new_config.name] = LLMClient(new_config, self.oauth_manager, self.credential_manager, self)
             
             logger.info(f"Updated LLM provider: {old_name} -> {new_config.name}")
             return True
@@ -707,12 +750,12 @@ class LLMClientManager:
         """Get list of required credentials for a provider."""
         if config.auth_method == AuthMethod.API_KEY:
             return [f"{config.name}_api_key"]
+        elif config.auth_method == AuthMethod.OAUTH:
+            return []  # OAuth handled by OAuth manager
         elif config.auth_method == AuthMethod.BEARER_TOKEN:
             return [f"{config.name}_token"]
         elif config.auth_method == AuthMethod.BASIC_AUTH:
             return [f"{config.name}_username", f"{config.name}_password"]
-        elif config.auth_method == AuthMethod.OAUTH:
-            return []  # OAuth handled by OAuth manager
         else:
             return []
     

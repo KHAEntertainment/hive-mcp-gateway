@@ -1,0 +1,31 @@
+basic_memory:
+  command: uvx
+  args:
+    - basic-memory
+    - mcp
+  env: {}
+  description: Simple key-value memory storage
+
+context7:
+  command: npx
+  args:
+    - -y
+    - '@upstash/context7-mcp@latest'
+  env: {}
+  description: Documentation search and library information
+
+exa:
+  command: http-sse
+  args:
+    - http://localhost:8002/exa
+  env:
+    Authorization: "Bearer ${EXA_API_KEY}"
+  description: Web search, research, and social media tools - High tool count server with 100+ tools
+
+puppeteer:
+  command: npx
+  args:
+    - -y
+    - '@modelcontextprotocol/server-puppeteer'
+  env: {}
+  description: Browser automation and web scraping - High tool count server

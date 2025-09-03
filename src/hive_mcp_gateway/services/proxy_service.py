@@ -21,6 +21,12 @@ class ProxyService:
     
     async def discover_all_tools(self) -> None:
         """Discover and index tools from all connected servers"""
+        # Import here to avoid circular imports
+        from ..main import app
+        
+        # Get registry from app state if available
+        registry = getattr(app.state, 'registry', None) if hasattr(app, 'state') else None
+        
         for server_name, tools in self.client_manager.server_tools.items():
             for tool in tools:
                 # Convert MCP tool to our Tool model
@@ -35,6 +41,14 @@ class ProxyService:
                 )
                 # Use sync version of add_tool
                 self.tool_repository.add_tool_sync(tool_obj)
+            
+            # Update the server registry with the tool count for this server
+            if registry:
+                try:
+                    registry.update_server_tool_count(server_name, len(tools))
+                except Exception as e:
+                    # Log error but continue with other servers
+                    print(f"Warning: Could not update tool count for server {server_name}: {e}")
     
     def provision_tool(self, tool_id: str) -> None:
         """Mark a tool as provisioned for use

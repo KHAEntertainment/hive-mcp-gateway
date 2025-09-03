@@ -4,6 +4,7 @@ import logging
 import platform
 import plistlib
 import subprocess
+import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -121,11 +122,10 @@ class MacOSAutoStartImpl(AutoStartImplBase):
         """Get detailed auto-start status."""
         return self.get_launch_agent_status()
     
-    def create_launch_agent(self, app_path: Optional[Path] = None) -> bool:
+    def create_launch_agent(self) -> bool:
         """Create macOS Launch Agent for auto-start."""
         try:
-            if app_path is None:
-                app_path = self.get_app_bundle_path()
+            app_path = self.get_app_bundle_path()
             
             if not app_path or not app_path.exists():
                 logger.error(f"App bundle not found at {app_path}")
@@ -134,7 +134,7 @@ class MacOSAutoStartImpl(AutoStartImplBase):
             # Create Launch Agent plist
             plist_data = {
                 "Label": "com.hive.mcp-gateway",
-                "ProgramArguments": [str(app_path / "Contents" / "MacOS" / "HiveMCPGateway")],
+                "ProgramArguments": [sys.executable, sys.argv[0]],
                 "RunAtLoad": True,
                 "KeepAlive": False,
                 "LaunchOnlyOnce": True,
@@ -143,7 +143,7 @@ class MacOSAutoStartImpl(AutoStartImplBase):
                 "StandardErrorPath": str(Path.home() / "Library" / "Logs" / "HiveMCPGateway_error.log"),
                 "WorkingDirectory": str(Path.home()),
                 "EnvironmentVariables": {
-                    "PATH": "/usr/local/bin:/usr/bin:/bin"
+                    "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
                 }
             }
             
@@ -236,12 +236,32 @@ class MacOSAutoStartImpl(AutoStartImplBase):
             Path.home() / "Applications" / "HiveMCPGateway.app",
             Path("/usr/local/bin/HiveMCPGateway.app"),
             # Development path
-            Path.cwd() / "dist" / "HiveMCPGateway.app"
+            Path.cwd() / "dist" / "HiveMCPGateway.app",
+            # Additional common paths
+            Path.home() / "Desktop" / "HiveMCPGateway.app",
+            Path.home() / "Downloads" / "HiveMCPGateway.app"
         ]
         
         for path in possible_paths:
             if path.exists() and path.is_dir():
+                logger.info(f"Found app bundle at: {path}")
                 return path
+        
+        # Try to find the app bundle using system utilities
+        try:
+            result = subprocess.run(
+                ["mdfind", "kMDItemCFBundleIdentifier == 'com.hive.mcp-gateway'"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                app_path = Path(result.stdout.strip().split('\n')[0])
+                if app_path.exists() and app_path.is_dir():
+                    logger.info(f"Found app bundle via mdfind: {app_path}")
+                    return app_path
+        except Exception as e:
+            logger.debug(f"Failed to find app bundle using mdfind: {e}")
         
         return None
     
