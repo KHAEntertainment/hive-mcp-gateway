@@ -1,14 +1,14 @@
 version: '3.8'
 
-# Docker Compose configuration for Hive MCP Gateway
-# Provides both development and production deployment options
+# Docker Compose for Hive MCP Gateway (Headless)
+# Intended for headless/server use. For GUI, use the native app.
 
 services:
   # Main Hive MCP Gateway service
   hive-mcp-gateway:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
       target: production  # Change to 'development' for dev environment
     container_name: hive-mcp-gateway
     restart: unless-stopped
@@ -16,21 +16,16 @@ services:
       - "8001:8001"  # Non-interfering port (existing install uses 8000)
     volumes:
       # Configuration persistence
-      - ./hive_mcp_gateway_config.json:/app/hive_mcp_gateway_config.json:ro
+      - ../hive_mcp_gateway_config.json:/app/hive_mcp_gateway_config.json:ro
       - hive-gateway-config:/app/config
       - hive-gateway-logs:/app/logs
       - hive-gateway-data:/app/data
     environment:
-      # Application configuration
       - CONFIG_PATH=/app/hive_mcp_gateway_config.json
       - LOG_LEVEL=info
       - HOST=0.0.0.0
       - PORT=8001
-      
-      # API Keys (use .env file or set directly)
       - EXA_API_KEY=${EXA_API_KEY:-}
-      
-      # Python configuration
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
     networks:
@@ -68,8 +63,8 @@ services:
   # Development service (alternative to main service)
   hive-gateway-dev:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
       target: development
     container_name: hive-mcp-gateway-dev
     restart: "no"  # Don't auto-restart in development
@@ -77,8 +72,7 @@ services:
       - "8001:8001"
       - "5678:5678"  # Debug port
     volumes:
-      # Mount source code for live development
-      - .:/app
+      - ../:/app  # Mount source code for live development
       - hive-gateway-dev-logs:/app/logs
     environment:
       - CONFIG_PATH=/app/hive_mcp_gateway_config.json
@@ -91,31 +85,36 @@ services:
     networks:
       - hive-gateway-network
     profiles:
-      - development  # Only start with: docker-compose --profile development up
+      - development  # Only start with: docker compose --profile development up
     command: ["uvicorn", "hive_mcp_gateway.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
 
-  # GUI service (for systems with display)
-  hive-gateway-gui:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: gui
-    container_name: hive-mcp-gateway-gui
-    restart: "no"
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - .:/app
-      - hive-gateway-gui-logs:/app/logs
-    environment:
-      - DISPLAY=${DISPLAY:-:0}
-      - CONFIG_PATH=/app/hive_mcp_gateway_config.json
-      - PYTHONPATH=/app
-    networks:
-      - hive-gateway-network
-    profiles:
-      - gui  # Only start with: docker-compose --profile gui up
-    depends_on:
-      - hive-mcp-gateway
+  # GUI service (disabled/untested, community welcome)
+  # NOTE: The GUI stage in the Dockerfile is commented out. If you
+  # want to experiment with GUI-in-Docker (not recommended), first
+  # re-enable the "gui" stage in docker/Dockerfile, then remove the
+  # comments in the service below and run with: --profile gui
+  # This has not been validated across platforms; PRs welcome.
+  # hive-gateway-gui:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #     target: gui
+  #   container_name: hive-mcp-gateway-gui
+  #   restart: "no"
+  #   volumes:
+  #     - /tmp/.X11-unix:/tmp/.X11-unix:rw
+  #     - ../:/app
+  #     - hive-gateway-gui-logs:/app/logs
+  #   environment:
+  #     - DISPLAY=${DISPLAY:-:0}
+  #     - CONFIG_PATH=/app/hive_mcp_gateway_config.json
+  #     - PYTHONPATH=/app
+  #   networks:
+  #     - hive-gateway-network
+  #   profiles:
+  #     - gui  # Only start with: docker compose --profile gui up
+  #   depends_on:
+  #     - hive-mcp-gateway
 
   # Monitoring service (optional)
   hive-gateway-monitor:
@@ -125,7 +124,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     networks:
       - hive-gateway-network
@@ -177,8 +176,3 @@ volumes:
   prometheus-data:
     driver: local
     name: hive-gateway-prometheus-data
-
-# Example .env file contents (create .env in project root):
-# EXA_API_KEY=your_exa_api_key_here
-# LOG_LEVEL=info
-# DISPLAY=:0

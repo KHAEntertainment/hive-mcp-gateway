@@ -180,7 +180,7 @@ This will:
 
 3. **Build the application:**
    ```bash
-   ./build_macos.sh
+   ./build/build_macos.sh
    ```
 
 ### Windows (Coming Soon)

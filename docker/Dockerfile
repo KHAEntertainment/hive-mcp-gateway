@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Hive MCP Gateway
-# Supports both development and production environments
+# Intended for headless/server use. For GUI, use the native app.
 
 FROM python:3.12-slim-bookworm as base
 
@@ -11,14 +11,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    # Essential build tools
     build-essential \
     curl \
     git \
-    # Node.js and npm for MCP servers
     nodejs \
     npm \
-    # Additional tools
     procps \
     htop \
     && rm -rf /var/lib/apt/lists/*
@@ -33,13 +30,15 @@ RUN groupadd --gid 1000 appuser && \
 # Set working directory
 WORKDIR /app
 
-# Install global Node.js packages for MCP servers
-RUN npm install -g \
-    @modelcontextprotocol/server-puppeteer \
-    @upstash/context7-mcp \
+# Install global Node.js MCP servers (pin via build-args)
+ARG PUPPETEER_MCP_VERSION=@modelcontextprotocol/server-puppeteer@latest
+ARG CONTEXT7_MCP_VERSION=@upstash/context7-mcp@latest
+RUN npm install -g "$PUPPETEER_MCP_VERSION" "$CONTEXT7_MCP_VERSION" \
     && npm cache clean --force
 
+# -------------------------
 # Development stage
+# -------------------------
 FROM base as development
 
 # Copy project files
@@ -68,7 +67,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Default command for development
 CMD ["uvicorn", "hive_mcp_gateway.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
 
+# -------------------------
 # Production stage
+# -------------------------
 FROM base as production
 
 # Copy only necessary files for production
@@ -99,45 +100,33 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Production command
 CMD ["hive-mcp-gateway"]
 
-# GUI stage (for running with display)
-FROM base as gui
-
-# Install additional GUI dependencies
-RUN apt-get update && apt-get install -y \
-    # X11 and GUI libraries
-    libx11-6 \
-    libxext6 \
-    libxrender1 \
-    libxtst6 \
-    libxi6 \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    # Qt dependencies
-    libqt6gui6 \
-    libqt6widgets6 \
-    libqt6core6 \
-    # Audio (optional)
-    libasound2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy project files
-COPY --chown=appuser:appuser . .
-
-# Install Python dependencies including GUI
-RUN uv sync --system-site-packages
-
-# Install package in development mode
-RUN uv pip install -e .
-
-# Create directories
-RUN mkdir -p /app/logs /app/config && \
-    chown -R appuser:appuser /app/logs /app/config
-
-# Switch to app user
-USER appuser
-
-# Set display environment
-ENV DISPLAY=:0
-
-# GUI command
-CMD ["python", "gui/main_app.py"]
+# -------------------------------------------------------------
+# GUI stage (disabled/untested in Docker)
+# -------------------------------------------------------------
+# Note: The PyQt6 GUI via Docker/X11 is not tested and not
+# recommended. Use the native macOS app bundle for GUI usage.
+# If you want to experiment, you can uncomment the following
+# block and adjust compose to build with target=gui.
+#
+# FROM base as gui
+# RUN apt-get update && apt-get install -y \
+#     libx11-6 \
+#     libxext6 \
+#     libxrender1 \
+#     libxtst6 \
+#     libxi6 \
+#     libgl1-mesa-glx \
+#     libglib2.0-0 \
+#     libqt6gui6 \
+#     libqt6widgets6 \
+#     libqt6core6 \
+#     libasound2 \
+#     && rm -rf /var/lib/apt/lists/*
+# COPY --chown=appuser:appuser . .
+# RUN uv sync --system-site-packages
+# RUN uv pip install -e .
+# RUN mkdir -p /app/logs /app/config && \
+#     chown -R appuser:appuser /app/logs /app/config
+# USER appuser
+# ENV DISPLAY=:0
+# CMD ["python", "gui/main_app.py"]

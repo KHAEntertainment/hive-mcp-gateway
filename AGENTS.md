@@ -8,7 +8,8 @@
 - `tool_gating_config.json`: Legacy/alternate JSON config
 - `tests/`: Pytest suite and fixtures
 - `scripts/`: Utilities (e.g., config migration)
-- `build/`, `dist/`: Packaging artifacts; `Dockerfile`, `docker-compose.yml` for containers
+- `build/`, `dist/`: Packaging artifacts
+- `docker/`: Docker assets (headless/server use)
 - `docs/`, `examples/`: Additional guides and samples
 - Integrated MCP: HTTP MCP endpoint mounted at `/mcp` (no external mcp-proxy required)
 
@@ -17,8 +18,8 @@
 - Run API (+ HTTP MCP at `/mcp`): `uv run hive-mcp-gateway` or `uv run python -m hive_mcp_gateway.main`
 - Tests: `uv run pytest -m "not slow"`
 - Lint/format/type-check: `uv run ruff check .` • `uv run black .` • `uv run mypy src`
-- macOS bundle: `./build_macos.sh`
-- Docker (local): `docker compose up --build`
+- macOS bundle: `./build/build_macos.sh`
+- Docker (local, headless): `docker compose -f docker/docker-compose.yml up --build`
 - Env overrides: `HOST`, `PORT` (default 8001), `CONFIG_PATH`
 
 ## Coding Style & Naming Conventions
@@ -35,7 +36,7 @@
 ## Commit & Pull Request Guidelines
 - Commit style: Prefer Conventional Commits (e.g., `feat:`, `fix:`, `docs:`, `refactor:`). Keep messages imperative and scoped.
 - PRs: concise title, what/why/how, linked issues, testing notes. Include screenshots for GUI changes and example requests for API changes.
-- Quality gates: linters, mypy, and tests must pass; update relevant docs (`README.md`, `USAGE.md`, `ARCHITECTURE.md`) when behavior changes.
+- Quality gates: linters, mypy, and tests must pass; update relevant docs (`README.md`, `docs/USAGE.md`, `docs/ARCHITECTURE.md`) when behavior changes.
 
 ## Security & Configuration Tips
 - Never hardcode secrets; use env vars (see `.env.example`). Override config via `CONFIG_PATH` when needed.

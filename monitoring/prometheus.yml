@@ -1,0 +1,22 @@
+# Prometheus configuration for Hive MCP Gateway (stub)
+# NOTE: This is a minimal, example configuration included for convenience.
+# - The API does not currently expose Prometheus metrics by default.
+# - If you add metrics, point a scrape job at the proper target/path.
+# - You can mount this file via docker/docker-compose.yml (monitoring service).
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # Example: scrape an HTTP metrics endpoint exposed by the gateway
+  # To use this, ensure the gateway exposes /metrics or your chosen path
+  - job_name: hive_gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          # When running with docker compose, Prometheus can reach the service
+          # by its container name on the same network
+          - hive-mcp-gateway:8001
+
+  # Add additional scrape jobs as needed

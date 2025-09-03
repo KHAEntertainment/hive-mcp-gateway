@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -76,41 +77,15 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing ErrorHandler...")
         error_handler = ErrorHandler()
         
-        # Automatically register all servers with multi-stage pipeline
-        logger.info("Starting automatic server registration pipeline...")
-        registration_results = await auto_registration.register_all_servers(config)
-        
-        # Log registration results
-        logger.info(f"Registration complete - Successful: {len(registration_results['successful'])}, "
-                    f"Failed: {len(registration_results['failed'])}, "
-                    f"Skipped: {len(registration_results['skipped'])}")
-        
-        if registration_results["failed"]:
-            logger.warning("Some servers failed to register:")
-            for failed in registration_results["failed"]:
-                logger.warning(f" - {failed['server']}: {failed['error']}")
-        
-        # Get tool repository
+        # Initialize lightweight services (non-blocking)
         logger.info("Initializing InMemoryToolRepository...")
         tool_repository = InMemoryToolRepository()
-        
-        # Initialize proxy service
         logger.info("Initializing ProxyService...")
         proxy_service = ProxyService(client_manager, tool_repository)
-        logger.info("Discovering all tools...")
-        await proxy_service.discover_all_tools()
-        
-        # Initialize file watcher for dynamic configuration updates
         logger.info("Initializing FileWatcherService...")
-        file_watcher = FileWatcherService(config_manager, registry)  # Fixed: pass registry instead of client_manager
-        
-        # Start file watching if enabled
-        if app_settings.config_watch_enabled:
-            logger.info("Starting file watching...")
-            await file_watcher.start_watching(config_path)
-            logger.info("✓ Configuration file watching enabled")
-        
-        # Store in app state for dependency injection
+        file_watcher = FileWatcherService(config_manager, registry)  # pass registry instead of client_manager
+
+        # Store services in app state before spawning background work
         logger.info("Storing services in app state...")
         app.state.client_manager = client_manager
         app.state.proxy_service = proxy_service
@@ -120,7 +95,49 @@ async def lifespan(app: FastAPI):
         app.state.registry = registry
         app.state.auto_registration = auto_registration
         app.state.error_handler = error_handler
-        
+
+        # Spawn background startup pipeline to avoid blocking bind/listen
+        async def _background_startup():
+            try:
+                logger.info("Background startup: Starting automatic server registration pipeline...")
+                registration_results = await auto_registration.register_all_servers(config)
+                logger.info(
+                    "Background startup: Registration complete - Successful: %d, Failed: %d, Skipped: %d",
+                    len(registration_results.get('successful', [])),
+                    len(registration_results.get('failed', [])),
+                    len(registration_results.get('skipped', [])),
+                )
+                if registration_results.get("failed"):
+                    for failed in registration_results["failed"]:
+                        logger.warning("Background startup: Registration failed - %s: %s", failed.get('server'), failed.get('error'))
+                # Discover tools after registration
+                try:
+                    logger.info("Background startup: Discovering all tools...")
+                    await proxy_service.discover_all_tools()
+                    logger.info("Background startup: Tool discovery complete")
+                except Exception as e:
+                    logger.exception(f"Background startup: Tool discovery failed: {e}")
+                # Start file watcher if enabled (non-blocking long-running)
+                if app_settings.config_watch_enabled:
+                    try:
+                        logger.info("Background startup: Starting file watcher...")
+                        await file_watcher.start_watching(config_path)
+                        logger.info("Background startup: File watcher running")
+                    except asyncio.CancelledError:
+                        logger.info("Background startup: File watcher task cancelled")
+                        raise
+                    except Exception as e:
+                        logger.exception(f"Background startup: File watcher failed to start: {e}")
+            except asyncio.CancelledError:
+                logger.info("Background startup task cancelled")
+                raise
+            except Exception as e:
+                logger.exception(f"Background startup pipeline error: {e}")
+
+        logger.info("Spawning background startup tasks (fast start)...")
+        startup_task = asyncio.create_task(_background_startup(), name="hmg_background_startup")
+        app.state.startup_task = startup_task
+         
         logger.info("✓ Proxy initialization complete")
         logger.info("Lifespan startup phase completed successfully")
         
@@ -135,6 +152,16 @@ async def lifespan(app: FastAPI):
     logger.info("=== LIFESPAN SHUTDOWN PHASE STARTING ===")
     logger.info("Shutting down Hive MCP Gateway Proxy...")
     
+    # Cancel background startup task if still running
+    startup_task = getattr(app.state, "startup_task", None)
+    if startup_task:
+        try:
+            logger.info("Cancelling background startup task...")
+            startup_task.cancel()
+            await asyncio.gather(startup_task, return_exceptions=True)
+        except Exception as e:
+            logger.warning(f"Error cancelling background startup task: {e}")
+
     # Stop file watcher
     if hasattr(app.state, "file_watcher"):
         logger.info("Stopping file watcher...")
