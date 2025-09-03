@@ -62,13 +62,13 @@ class MCPClientManager:
         """Connect to a stdio-based MCP server and discover its tools."""
         # Special handling for context7 - use mock tools if MCP SDK is not available
         try:
-            from mcp import ClientSession
-            from mcp.client.stdio import stdio_client, StdioServerParameters
+            from mcp import ClientSession  # type: ignore
+            from mcp.client.stdio import stdio_client, StdioServerParameters  # type: ignore
         except ImportError:
             logger.warning("MCP SDK not available, using mock tools for server: %s", name)
             
             # Provide mock tools for context7 specifically
-            mock_tools = []
+            mock_tools: List[Any] = []
             if name == "context7":
                 mock_tools = [
                     type('MockTool', (), {
@@ -89,8 +89,17 @@ class MCPClientManager:
                 "connected": False,
                 "reason": "MCP SDK not available (using mock tools)"
             }
+            # Update registry with mock availability
+            try:
+                from ..main import app  # late import to avoid cycles
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.set_server_connected(name, False)
+                    registry.update_server_tool_count(name, len(mock_tools))
+            except Exception as e:
+                logger.debug(f"Registry update skipped for {name} (mock path): {e}")
             return {"status": "success", "message": "Using mock tools due to missing MCP SDK", "tools_count": len(mock_tools)}
-            
+        
         try:
             logger.info(f"Attempting to connect to stdio MCP server: {name}")
             
@@ -123,7 +132,12 @@ class MCPClientManager:
             
             # Log tool names for debugging
             for tool in tools:
-                logger.debug(f"  - {tool.name}: {tool.description[:50]}...")
+                try:
+                    tname = getattr(tool, "name", "unknown")
+                    tdesc = getattr(tool, "description", "") or ""
+                    logger.debug(f"  - {tname}: {tdesc[:50]}...")
+                except Exception:
+                    pass
             
             # Store server info
             self._server_info[name] = {
@@ -132,9 +146,20 @@ class MCPClientManager:
                 "tools_discovered": len(tools)
             }
             
+            # Immediately reflect connection status and tool count in shared registry
+            try:
+                from ..main import app  # late import to avoid cycles
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.set_server_connected(name, True)
+                    registry.update_server_tool_count(name, len(tools))
+                    logger.info(f"Updated registry for {name}: connected=True, tools={len(tools)}")
+            except Exception as e:
+                logger.warning(f"Could not update registry for {name}: {e}")
+            
             return {"status": "success", "message": f"Connected to {name}", "tools_count": len(tools)}
                         
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             error = ConnectionError(f"Command not found: {config['command']}")
             if self.error_handler:
                 self.error_handler.handle_error(name, error, "_connect_stdio_server")
@@ -155,7 +180,7 @@ class MCPClientManager:
             if name in self._stdio_contexts:
                 try:
                     await self._stdio_contexts[name].__aexit__(None, None, None)
-                except:
+                except Exception:
                     pass
                 del self._stdio_contexts[name]
             if name in self.sessions:
@@ -202,6 +227,16 @@ class MCPClientManager:
             }
             
             logger.info(f"Connected to HTTP MCP server {name} at {url}")
+            # Reflect in registry
+            try:
+                from ..main import app  # late import to avoid cycles
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.set_server_connected(name, True)
+                    registry.update_server_tool_count(name, len(mock_tools))
+                    logger.info(f"Updated registry for {name}: connected=True, tools={len(mock_tools)}")
+            except Exception as e:
+                logger.warning(f"Could not update registry for HTTP server {name}: {e}")
             return {"status": "success", "message": f"Connected to HTTP server {name}", "tools_count": len(mock_tools)}
             
         except Exception as e:

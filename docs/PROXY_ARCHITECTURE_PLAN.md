@@ -1,8 +1,8 @@
-# Tool Gating MCP Proxy Architecture Plan
+# Hive MCP Gateway Proxy Architecture Plan
 
 ## Overview
 
-Tool Gating MCP will be transformed into a **proxy/router** that sits between MCP clients (Claude Desktop, Cursor, etc.) and multiple MCP servers. This allows dynamic tool discovery and provisioning while maintaining a single connection point for clients.
+Hive MCP Gateway will be transformed into a **proxy/router** that sits between MCP clients (Claude Desktop, Cursor, etc.) and multiple MCP servers. This allows dynamic tool discovery and provisioning while maintaining a single connection point for clients.
 
 ## Problem Statement
 
@@ -44,7 +44,7 @@ graph TB
     end
     
     subgraph "Tool Gating Proxy"
-        D[Tool Gating MCP Server]
+        D[Hive MCP Gateway]
         E[Tool Registry]
         F[MCP Client Manager]
         G[Request Router]

@@ -1,6 +1,6 @@
 # Error Handling and Recovery
 
-Tool Gating MCP includes a comprehensive error handling and recovery system designed to maintain system stability and provide graceful degradation when issues occur.
+Hive MCP Gateway includes a comprehensive error handling and recovery system designed to maintain system stability and provide graceful degradation when issues occur.
 
 ## Error Types
 

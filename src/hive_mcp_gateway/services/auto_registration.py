@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class AutoRegistrationService:
-    """Service for automatically registering MCP servers with fallback mechanisms."""
+    """Service for automatically registering MCP servers with multi-stage pipeline and fallback mechanisms."""
     
     def __init__(
         self,
@@ -121,6 +121,14 @@ class AutoRegistrationService:
             registry_result = await self.registry.register_server_from_config(name, config)
             
             if registry_result["status"] == "success":
+                # Mark connected and set initial tool count based on connection result
+                try:
+                    self.registry.set_server_connected(name, True)
+                    tools_count = int(connect_result.get("tools_count", 0))
+                    self.registry.update_server_tool_count(name, tools_count)
+                    logger.info(f"Registry updated for {name}: connected=True, tools={tools_count}")
+                except Exception as e:
+                    logger.warning(f"Failed to update registry connection state for {name}: {e}")
                 return {
                     "status": "success",
                     "message": f"Server {name} registered successfully",
@@ -173,19 +181,31 @@ class AutoRegistrationService:
         """Perform health checks on all registered servers."""
         for server_name in server_names:
             try:
-                health_result = await self.client_manager.health_check(server_name)
-                logger.info(f"Health check for {server_name}: {health_result['status']}")
-                
-                # Update registry with health status
+                # Use registry-based health check leveraging current configuration
+                cfg = self.config_manager.load_config()
+                server_config = cfg.backend_mcp_servers.get(server_name)
+                if not server_config:
+                    logger.warning(f"Health check skipped for {server_name}: config not found")
+                    self.registry.update_server_health_status(server_name, "unknown")
+                    continue
+                health_result = await self.registry.perform_health_check(server_name, server_config)
+                status_raw = str(health_result.get("status", "unknown")).lower()
+                # Map to allowed literals
+                if status_raw not in ("healthy", "unhealthy", "unknown"):
+                    status_mapped = "unknown"
+                else:
+                    status_mapped = status_raw
+                logger.info(f"Health check for {server_name}: {status_mapped}")
                 self.registry.update_server_health_status(
                     server_name,
-                    health_result["status"],
+                    status_mapped,
                     health_result.get("message", "")
                 )
-                
+                 
             except Exception as e:
                 logger.error(f"Health check failed for {server_name}: {e}")
-                self.registry.update_server_health_status(server_name, "error", str(e))
+                # On error, mark as unhealthy with message
+                self.registry.update_server_health_status(server_name, "unhealthy", str(e))
     
     async def _retry_failed_registrations(self, results: Dict[str, Any]) -> None:
         """Retry failed registrations with exponential backoff."""
@@ -264,11 +284,12 @@ class AutoRegistrationService:
             registry_result = await self.registry.unregister_server(name)
             
             if registry_result["status"] == "success":
-                # Disconnect server
-                disconnect_result = await self.client_manager.disconnect_server(name)
-                if disconnect_result["status"] != "success":
-                    logger.warning(f"Failed to disconnect server {name}: {disconnect_result['message']}")
-                
+                # Disconnect server (no result returned; best-effort)
+                try:
+                    await self.client_manager.disconnect_server(name)
+                except Exception as e:
+                    logger.warning(f"Failed to disconnect server {name}: {e}")
+                 
                 logger.info(f"✓ Server {name} unregistered successfully")
                 return {
                     "status": "success",

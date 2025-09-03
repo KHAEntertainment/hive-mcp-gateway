@@ -96,7 +96,7 @@ After researching both solutions, here's my analysis of their suitability for to
 
 ## Comparison for Tool Gating Requirements
 
-| Requirement | mcp-proxy-server | LangChain MultiServerMCPClient | Our Tool Gating |
+| Requirement | mcp-proxy-server | LangChain MultiServerMCPClient | Hive MCP Gateway |
 |------------|------------------|-------------------------------|-----------------|
 | Multiple MCP servers | ✅ Yes | ✅ Yes | ✅ Needed |
 | Dynamic tool discovery | ❌ No | ❌ No | ✅ Core feature |
@@ -182,4 +182,4 @@ While neither solution provides a suitable base for direct use, **LangChain's Mu
 3. **Build our own solution** with added intelligence
 4. **Focus on our unique value**: semantic discovery and token management
 
-Our Tool Gating MCP is solving a different problem - not just connecting to multiple servers, but intelligently selecting which tools to expose based on relevance and constraints. This requires a custom implementation.
+Hive MCP Gateway is solving a different problem - not just connecting to multiple servers, but intelligently selecting which tools to expose based on relevance and constraints. This requires a custom implementation.

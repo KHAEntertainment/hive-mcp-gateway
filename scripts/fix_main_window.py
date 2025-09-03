@@ -63,3 +63,4 @@ def fix_main_window():
 
 if __name__ == "__main__":
     fix_main_window()
+

@@ -256,6 +256,10 @@ Notes:
 - Adjust versions as needed to match your environment and compatibility.
 ```
 
+## MCP Transport Note
+
+Hive MCP Gateway exposes an HTTP MCP endpoint at `/mcp`. External `mcp-proxy` is not required for clients that can connect over HTTP. Use `mcp-proxy` only for clients that require stdio (e.g., certain desktop IDE integrations).
+
 ## Development Setup
 
 ### Local Development
@@ -373,7 +377,7 @@ The system watches for configuration file changes and automatically:
    jq '.toolGating.port = 8002' hive_mcp_gateway_config.json > tmp.json && mv tmp.json hive_mcp_gateway_config.json
    ```
 
-2. **mcp-proxy Not Found:**
+2. **mcp-proxy Not Found (only if using stdio bridging):**
    ```bash
    # Check mcp-proxy status
    ps aux | grep mcp-proxy

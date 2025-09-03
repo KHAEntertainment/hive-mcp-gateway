@@ -1,10 +1,10 @@
 # AI-Assisted MCP Server Integration
 
-This guide explains how AI assistants can automatically add new MCP servers to the Tool Gating system.
+This guide explains how AI assistants can automatically add new MCP servers to the Hive MCP Gateway.
 
 ## Overview
 
-The Tool Gating MCP server provides special endpoints that allow AI assistants (like Claude Desktop, Cursor, or via Anthropic API) to automatically:
+The Hive MCP Gateway provides special endpoints that allow AI assistants (like Claude Desktop, Cursor, or via Anthropic API) to automatically:
 1. Register new MCP server configurations
 2. Discover all available tools
 3. Add them with proper metadata for selective provisioning
@@ -18,7 +18,7 @@ When a user provides you with an MCP server configuration, follow these steps:
 1. **Register the server and its tools in one call:**
 
 ```bash
-POST http://localhost:8000/api/mcp/ai/register-server
+POST http://localhost:8001/api/mcp/ai/register-server
 
 {
   "server_name": "slack",
@@ -105,7 +105,7 @@ When you call the discover endpoint, the system:
 3. Automatically registers everything
 
 ```bash
-POST http://localhost:8000/api/mcp/discover
+POST http://localhost:8001/api/mcp/discover
 {
   "server_name": "github",
   "config": {
@@ -153,7 +153,7 @@ def estimate_tokens(tool):
 
 ## Example: Complete Slack Integration
 
-**User:** "Add this Slack MCP server to my tool gating"
+**User:** "Add this Slack MCP server to my Hive MCP Gateway"
 
 **AI Assistant Actions:**
 
@@ -182,7 +182,7 @@ POST /api/mcp/ai/register-server
 
 5. Response to user:
 ```
-I've successfully added the Slack MCP server to your Tool Gating system:
+I've successfully added the Slack MCP server to your Hive MCP Gateway:
 
 📊 Server: slack
 🔧 Tools: 12 registered

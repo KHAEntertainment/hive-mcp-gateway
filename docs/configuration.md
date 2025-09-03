@@ -1,10 +1,10 @@
 # Configuration Guide
 
-Tool Gating MCP supports both YAML and JSON configuration formats. The YAML format is recommended as it provides better readability and supports comments.
+Hive MCP Gateway supports both YAML and JSON configuration formats. The YAML format is recommended as it provides better readability and supports comments.
 
 ## Configuration File Locations
 
-By default, Tool Gating MCP looks for configuration files in the following locations:
+By default, Hive MCP Gateway looks for configuration files in the following locations:
 
 1. `config/tool_gating_config.yaml` (YAML format)
 2. `tool_gating_config.json` (JSON format)
@@ -82,7 +82,7 @@ Each backend MCP server can be configured with the following settings:
 
 ### Authentication Configuration
 
-Tool Gating MCP supports several authentication methods:
+Hive MCP Gateway supports several authentication methods:
 
 #### No Authentication
 
@@ -248,7 +248,7 @@ backendMcpServers:
     type: "streamable-http"
     url: "https://api.github.com/mcp"
     headers:
-      User-Agent: "ToolGatingMCP/1.0"
+      User-Agent: "HiveMCPGateway/1.0"
     description: "GitHub integration for repository management"
     enabled: false
     authentication:
@@ -271,7 +271,7 @@ backendMcpServers:
 
 ## Environment Variable Substitution
 
-Tool Gating MCP supports environment variable substitution in configuration files using the `${VARIABLE_NAME}` syntax:
+Hive MCP Gateway supports environment variable substitution in configuration files using the `${VARIABLE_NAME}` syntax:
 
 ```yaml
 backendMcpServers:
@@ -304,7 +304,7 @@ The migration script automatically adds default values for new fields:
 
 ## Validation
 
-Tool Gating MCP validates configuration files at startup and provides detailed error messages for invalid configurations. The validation includes:
+Hive MCP Gateway validates configuration files at startup and provides detailed error messages for invalid configurations. The validation includes:
 
 - Required fields for each server type
 - Valid values for enumerated fields

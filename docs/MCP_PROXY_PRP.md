@@ -3,7 +3,7 @@ description: |
 
 ## Goal
 
-Transform Tool Gating MCP into an intelligent proxy/router that enables Claude Desktop and other MCP clients to dynamically discover and use tools from multiple MCP servers while maintaining a single connection point and optimizing context usage.
+Transform Hive MCP Gateway into an intelligent proxy/router that enables Claude Desktop and other MCP clients to dynamically discover and use tools from multiple MCP servers while maintaining a single connection point and optimizing context usage.
 
 ## Why
 
@@ -15,7 +15,7 @@ Transform Tool Gating MCP into an intelligent proxy/router that enables Claude D
 
 ## What
 
-Tool Gating MCP will act as an intelligent proxy between MCP clients and multiple backend MCP servers:
+Hive MCP Gateway will act as an intelligent proxy between MCP clients and multiple backend MCP servers:
 
 - **Core Functionality**:
   - Maintain persistent connections to multiple MCP servers via stdio
@@ -31,11 +31,11 @@ Tool Gating MCP will act as an intelligent proxy between MCP clients and multipl
   - Execute Tool MCP endpoint: Single entry point for all tool execution
 
 - **User Interactions**:
-  1. Claude Desktop connects only to Tool Gating MCP
+  1. Claude Desktop connects only to Hive MCP Gateway
   2. User asks for capabilities (e.g., "I need to search the web")
-  3. Tool Gating discovers relevant tools across all servers
+  3. Hive MCP Gateway discovers relevant tools across all servers
   4. User provisions selected tools within token budget
-  5. User executes tools seamlessly through Tool Gating proxy
+  5. User executes tools seamlessly through Hive MCP Gateway proxy
 
 ## Endpoints/APIs to Implement
 

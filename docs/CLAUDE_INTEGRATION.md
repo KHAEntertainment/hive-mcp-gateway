@@ -4,6 +4,8 @@
 
 Hive MCP Gateway is designed to work with **any MCP-compatible client**, including Claude Desktop, Claude Code, Gemini CLI, Kiro, and other agentic coding systems. While it works exceptionally well with Claude products, it's important to understand that it's a universal solution that can benefit any MCP-compatible client.
 
+Note on transport: Hive MCP Gateway exposes an HTTP MCP endpoint at `/mcp`. If your client supports HTTP MCP, you can connect directly. Use `mcp-proxy` only when your client requires stdio bridging.
+
 ## Special Benefits for Claude Code
 
 Claude Code in particular suffers from major context window bloat as you add numerous MCPs to its configuration. With Hive MCP Gateway, you can:

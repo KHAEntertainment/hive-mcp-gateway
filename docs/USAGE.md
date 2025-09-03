@@ -49,8 +49,10 @@ When using Hive MCP Gateway as an MCP server, you have access to:
         "name": "homepage",
         "selector": "body"
     }
-}
-```
+  }
+  ```
+
+   Note: If your client supports HTTP MCP natively, you can connect directly to `http://localhost:8001/mcp` without using `mcp-proxy`.
 
 ## Real-World Examples
 

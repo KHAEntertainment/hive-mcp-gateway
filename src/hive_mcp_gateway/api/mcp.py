@@ -49,8 +49,16 @@ _mcp_registry: MCPServerRegistry | None = None
 
 
 def get_mcp_registry() -> MCPServerRegistry:
-    """Get or create MCP registry instance"""
+    """Get the process-wide MCP registry, preferring the FastAPI app's instance."""
     global _mcp_registry
+    try:
+        # Prefer the registry created during app startup (shared state)
+        from ..main import app  # noqa: WPS433 (import inside function by design)
+        if hasattr(app, "state") and getattr(app.state, "registry", None) is not None:
+            return app.state.registry  # type: ignore[return-value]
+    except Exception:
+        # If app import/state access fails, fall back to module-level singleton
+        pass
     if _mcp_registry is None:
         _mcp_registry = MCPServerRegistry()
     return _mcp_registry

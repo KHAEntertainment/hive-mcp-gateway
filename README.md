@@ -2,6 +2,19 @@
 
 Hive MCP Gateway is an intelligent system for managing Model Context Protocol (MCP) tools to prevent context bloat. It discovers and provisions only the most relevant tools for each task, supporting both stdio and HTTP-based MCP servers.
 
+## Docs
+- Full docs live under `docs/` to keep the root clean:
+  - `docs/ARCHITECTURE.md` – System design and components
+  - `docs/USAGE.md` – Usage and configuration guide
+  - `docs/BUILD.md` – macOS build instructions
+  - `docs/DEPLOYMENT.md` – Deployment (including Docker headless)
+  - `docs/ROADMAP.md` – Roadmap and plans
+  - `docs/TASKS.md` – Near-term tasks and TODOs
+  - `docs/CLAUDE_INTEGRATION.md` – Claude-specific integration notes
+  - `docs/tool-gating-mcp-troubleshooting-notes.md` – Troubleshooting notes
+  
+Docker assets and guidance are under `docker/` (headless use; GUI is native-only).
+
 ## Platform Support
 
 **Currently Supported:**
