@@ -63,8 +63,33 @@ class ServiceManager(QObject):
             if self.is_service_running():
                 logger.warning("Hive MCP Gateway service is already running")
                 return True
-            
+
             # Prepare command to start the service
+            # If configured port is occupied, find a temporary free port (do not persist)
+            try:
+                if self._is_port_in_use(self.tool_gating_port):
+                    original_port = self.tool_gating_port
+                    fallback_port = self._find_available_port(start_port=original_port, tries=10)
+                    if fallback_port is None:
+                        logger.error(
+                            f"No available port found near {original_port}. Unable to start service."
+                        )
+                        self.status_changed.emit("error")
+                        return False
+                    # Use fallback runtime port
+                    self.tool_gating_port = fallback_port
+                    msg = (
+                        f"Configured port {original_port} is in use. "
+                        f"Starting temporarily on {fallback_port} (GUI will continue to show configured port)."
+                    )
+                    logger.info(msg)
+                    try:
+                        self.log_message.emit(msg)
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.debug(f"Port availability check failed: {e}")
+
             cmd = self._get_start_command()
             
             if not cmd:
@@ -89,6 +114,11 @@ class ServiceManager(QObject):
                 if self.tool_gating_process.waitForStarted(5000):
                     self.tool_gating_pid = self.tool_gating_process.processId()
                     logger.info(f"Started Hive MCP Gateway service (PID: {self.tool_gating_pid})")
+                    # Inform which port we're using at runtime
+                    try:
+                        self.log_message.emit(f"Service running on http://localhost:{self.tool_gating_port}")
+                    except Exception:
+                        pass
                     self.status_changed.emit("running")
                     return True
                 else:
@@ -250,6 +280,22 @@ class ServiceManager(QObject):
         except Exception as e:
             logger.error(f"Error checking port {port}: {e}")
             return False
+
+    def _find_available_port(self, start_port: int, tries: int = 10) -> Optional[int]:
+        """Find an available port starting from start_port, trying sequentially.
+
+        Returns the first free port number, or None if none found within range.
+        """
+        try:
+            import socket
+            for port in range(start_port, start_port + max(1, tries)):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    if s.connect_ex(("127.0.0.1", port)) != 0:
+                        return port
+        except Exception as e:
+            logger.debug(f"Failed to probe for free port near {start_port}: {e}")
+        return None
     
     def _on_stdout(self):
         """Handle stdout from the process."""
