@@ -201,3 +201,15 @@ npm-debug.log*
 
 # Archive directory
 .archive/
+
+# Local agent tooling caches (do not commit)
+.claude-flow/
+.plandex-v2/
+.swarm/
+.cursor/
+
+# MCP local config (use .mcp.json.example instead)
+.mcp.json
+
+# Ad-hoc root-level test scripts (keep real tests under tests/)
+/test_*.py

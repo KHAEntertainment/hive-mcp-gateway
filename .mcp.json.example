@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "hive-gateway": {
-      "command": "/path/to/mcp-proxy",
+      "command": "mcp-proxy",
       "args": ["http://localhost:8001/mcp"],
       "env": {}
     }

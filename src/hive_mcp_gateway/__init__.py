@@ -13,15 +13,9 @@ def main() -> None:
     print("=== INIT.PY MAIN FUNCTION CALLED ===")
     import uvicorn
 
-    # Check if running in MCP mode
-    if "--mcp" in sys.argv:
-        # Run as MCP server using stdio transport
-        from .mcp_server import run_mcp_stdio
-        run_mcp_stdio()
-    else:
-        # Run as standard HTTP API
-        print("=== STARTING UVICORN SERVER ===")
-        uvicorn.run("hive_mcp_gateway.main:app", host="0.0.0.0", port=8001, reload=True)
-        print("=== UVICORN SERVER STOPPED ===")
+    # Always run as standard HTTP API for debugging
+    print("=== STARTING UVICORN SERVER AS HTTP API ===")
+    uvicorn.run("hive_mcp_gateway.main:app", host="0.0.0.0", port=8001, reload=False)
+    print("=== UVICORN SERVER STOPPED ===")
         
     print("=== INIT.PY MAIN FUNCTION ENDED ===")

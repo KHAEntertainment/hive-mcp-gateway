@@ -57,35 +57,7 @@ def get_config() -> Settings:
     """Get the global configuration instance."""
     return settings
 
-# MCP Server Configurations
-# Include all MCP servers from Claude Desktop (except tool-gating itself)
-MCP_SERVERS = {
-    "context7": {
-        "command": "npx",
-        "args": ["-y", "@upstash/context7-mcp@latest"],
-        "description": "Documentation search and library information",
-        "env": {}
-    },
-    "basic-memory": {
-        "command": "uvx",
-        "args": ["basic-memory", "mcp"],
-        "description": "Simple key-value memory storage",
-        "env": {}
-    },
-    "puppeteer": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
-        "description": "Browser automation and web scraping",
-        "env": {}
-    },
-    "exa": {
-        "command": "exa-mcp-server",
-        "args": [
-            "--tools=web_search_exa,research_paper_search,twitter_search,company_research,crawling,competitor_finder,linkedin_search"
-        ],
-        "description": "Web search, research, and social media tools",
-        "env": {
-            "EXA_API_KEY": "b2491db3-f3de-4b99-a510-a6b81a179cdb"
-        }
-    }
-}
+# Note: Legacy MCP_SERVERS constant removed. Server definitions should come from
+# the main configuration file (YAML/JSON) and/or via the GUI. Environment
+# variables may be referenced in config using ${VAR} and will be substituted
+# at load time by ConfigManager.
