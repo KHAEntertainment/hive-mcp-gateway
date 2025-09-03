@@ -14,6 +14,10 @@ This file tracks near-term engineering tasks. Use alongside GitHub Issues for di
   - Clear notification to the user about which port was chosen and why.
   - Restarting on a free 8001 goes back to 8001 unless user changed config.
 
+Follow-up (GUI Notice)
+- Add a visible notice when a fallback port is used (e.g., banner or status panel message) with a quick action to open Port Settings.
+- Ensure the Status widget reflects the runtime port clearly, while still indicating the configured default.
+
 ## 2) Branding Consistency Sweep (Docs)
 - Summary: Replace remaining references to “Tool Gating MCP” with “Hive MCP Gateway” in documentation where applicable.
 - Scope:
