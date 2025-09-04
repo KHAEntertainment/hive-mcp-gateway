@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from ..api.models import (
     ToolDiscoveryRequest,
@@ -110,3 +111,56 @@ async def clear_tools(
 
 # Note: Tool execution happens via the proxy API (/api/proxy/execute).
 # Server management happens via the simplified add_server endpoint (/api/mcp/add_server).
+
+
+# --- Gating (skeleton) endpoints ---
+
+class ProvisionRequest(BaseModel):
+    tool_ids: list[str] = Field(default_factory=list)
+    replace: bool = False
+
+
+class PublishedResponse(BaseModel):
+    default_policy: str
+    published_ids: list[str]
+    discovered: dict[str, list[str]]
+
+
+@router.post("/provision", operation_id="provision_tools")
+async def provision_tools(request: Request, body: ProvisionRequest) -> dict[str, str]:
+    """Publish a set of tool IDs for exposure (skeleton).
+
+    Uses the in-process GatingService. No validation of IDs yet.
+    """
+    try:
+        app = request.app
+        gating = getattr(app.state, "gating", None)
+        if gating is None:
+            raise HTTPException(status_code=500, detail="Gating service unavailable")
+        if not body.tool_ids:
+            return {"status": "ok", "message": "no-op: empty tool_ids"}
+        gating.publish_ids(body.tool_ids, replace=body.replace)
+        return {"status": "ok", "message": f"published {len(body.tool_ids)} tool ids"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Provision failed: {e}")
+
+
+@router.get("/published", response_model=PublishedResponse, operation_id="get_published")
+async def get_published(request: Request) -> PublishedResponse:
+    """Return current published tool IDs, default policy, and discovered names per server."""
+    try:
+        app = request.app
+        gating = getattr(app.state, "gating", None)
+        if gating is None:
+            raise HTTPException(status_code=500, detail="Gating service unavailable")
+        return PublishedResponse(
+            default_policy=gating.default_policy(),
+            published_ids=sorted(gating.get_published_ids()),
+            discovered=gating.get_discovered(),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Read published failed: {e}")
