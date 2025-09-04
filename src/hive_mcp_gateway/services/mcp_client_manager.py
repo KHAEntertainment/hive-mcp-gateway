@@ -34,37 +34,70 @@ class MCPClientManager:
         """
         server_type = config.get("type", "stdio")
         via = config.get("via", "direct")
+        connection_path = "unknown"
         
         try:
+            # Update connection state to connecting
+            try:
+                from ..main import app
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.set_connection_state(name, "connecting")
+            except Exception:
+                pass
+            
             if server_type == "stdio":
-                # Auto-route to proxy if configured to manage proxy and a base URL is set
+                # Check if proxy is available for proxy mode
+                proxy_available = False
                 if via == "proxy":
+                    try:
+                        from ..main import app
+                        orchestrator = getattr(app.state, "proxy_orchestrator", None) if hasattr(app, "state") else None
+                        if orchestrator and orchestrator.is_running():
+                            proxy_available = True
+                    except Exception:
+                        pass
+                
+                # Auto-route to proxy if configured to manage proxy and a base URL is set
+                if via == "proxy" and proxy_available:
                     result = await self._connect_proxy_server(name, config)
-                    # Fallback to direct stdio if proxy unavailable
-                    if result.get("status") != "success":
+                    if result.get("status") == "success":
+                        connection_path = "proxy"
+                    else:
+                        # Fallback to direct stdio if proxy unavailable
                         logger.warning(f"Proxy connect failed for {name}; falling back to direct stdio")
                         result = await self._connect_stdio_server(name, config)
+                        connection_path = "proxy-fallback-direct" if result.get("status") == "success" else "unknown"
                 else:
+                    # Check auto-proxy settings
                     try:
                         from ..main import app  # late import
                         settings = getattr(app.state, "app_settings", None)
                         proxy_url = getattr(settings, "proxy_url", None) if settings else None
                         auto_proxy = getattr(settings, "auto_proxy_stdio", True) if settings else True
-                        if auto_proxy and proxy_url:
+                        if auto_proxy and proxy_url and proxy_available:
                             # Enrich config with proxy endpoint hint
                             cfg = dict(config)
                             cfg.setdefault("url", f"{proxy_url.rstrip('/')}/{name}/sse")
-                            return await self._connect_proxy_server(name, cfg)
+                            result = await self._connect_proxy_server(name, cfg)
+                            connection_path = "proxy" if result.get("status") == "success" else "direct"
+                        else:
+                            result = await self._connect_stdio_server(name, config)
+                            connection_path = "direct" if result.get("status") == "success" else "unknown"
                     except Exception:
-                        pass
-                    result = await self._connect_stdio_server(name, config)
+                        result = await self._connect_stdio_server(name, config)
+                        connection_path = "direct" if result.get("status") == "success" else "unknown"
             elif server_type in ["sse", "streamable-http"]:
                 result = await self._connect_http_server(name, config)
+                connection_path = "direct" if result.get("status") == "success" else "unknown"
             else:
                 error = ConnectionError(f"Unsupported server type: {server_type}")
                 if self.error_handler:
                     self.error_handler.handle_error(name, error, "connect_server")
-                return {"status": "error", "message": str(error)}
+                return {"status": "error", "message": str(error), "connection_path": "unknown"}
+            
+            # Add connection path to result
+            result["connection_path"] = connection_path
             
             # Ensure tools_count is included in the result
             if "tools_count" not in result and name in self.server_tools:
@@ -77,7 +110,7 @@ class MCPClientManager:
             if self.error_handler:
                 self.error_handler.handle_error(name, error, "connect_server")
             logger.error(f"Failed to connect to server {name}: {str(e)}")
-            return {"status": "error", "message": str(error)}
+            return {"status": "error", "message": str(error), "connection_path": "unknown"}
     
     async def _connect_stdio_server(self, name: str, config: dict) -> Dict[str, Any]:
         """Connect to a stdio-based MCP server and discover its tools."""

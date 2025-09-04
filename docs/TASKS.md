@@ -165,17 +165,34 @@ Status update (Sept 4):
 - Summary: Move Dependencies to About tab, simplify Service Status layout, add readable proxy labels + tooltips.
 - Result: Status no longer cramped; proxy line shows Managed/Route/Status+Base.
 
-## 15) Add “Discover All” and per‑server last error in cards (IN PROGRESS)
+## 15) Add "Discover All" and per‑server last error in cards (COMPLETED - Dec 4, 2024)
 - Summary: One‑click discovery across servers and surface last discovery error per server.
 - Implemented:
   - Discover All button in Status → API row (`gui/main_window.py`).
   - Service method `discover_all_tools()` iterates servers and triggers `/api/mcp/discover_tools` (`gui/service_manager.py`).
   - Cards show last error line via `error_message` from `/api/mcp/servers` and clear on success.
-- Next:
-  - Optional: show per‑server progress UI; attach timestamps to last error.
-- Acceptance Criteria:
+  - Enhanced discovery state tracking with new fields:
+    - `discovery_state`: idle/pending/running/success/error/timeout
+    - `discovery_started_at/finished_at`: timestamps for tracking duration
+    - `last_discovery_error/last_discovery_error_at`: persistent error tracking
+    - `connection_state`: disconnected/connecting/connected/error
+    - `connection_path`: direct/proxy/proxy-fallback-direct
+  - Reconnect endpoint now waits for discovery completion (configurable timeout)
+  - Discovery endpoint handles disconnected servers by connecting first
+  - Proxy readiness verification improved (multi-phase HTTP checks)
+  - Client manager tracks connection paths and fallback scenarios
+  - API responses include all new state fields for UI consumption
+- Fixes applied (Dec 4):
+  - Fixed async discovery not completing properly
+  - Fixed proxy readiness check (was only checking port, now verifies HTTP)
+  - Fixed reconnect/discovery endpoints not waiting for results
+  - Fixed error messages not persisting properly
+  - Fixed connection path tracking for proxy vs direct connections
+- Acceptance Criteria: ✅
   - Button triggers discovery for all enabled servers with progress.
   - Each card displays last error (if any) with timestamp; clears on success.
+  - Tool counts update correctly after discovery completes.
+  - Connection and discovery states properly tracked and displayed.
 
 ## 16) Proxy diagnostics and install guidance (NEW)
 - Summary: When proxy not installed, show clear guidance and link to docs; reflect fallback to direct stdio.

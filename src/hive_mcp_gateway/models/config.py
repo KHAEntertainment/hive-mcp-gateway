@@ -170,6 +170,17 @@ class ServerStatus(BaseModel):
     health_status: Literal["healthy", "unhealthy", "unknown"] = "unknown"
     last_health_check: Optional[str] = None
     tags: List[str] = Field(default_factory=list)  # Added missing tags field
+    
+    # Discovery state tracking
+    discovery_state: Literal["idle", "pending", "running", "success", "error", "timeout"] = "idle"
+    discovery_started_at: Optional[str] = None
+    discovery_finished_at: Optional[str] = None
+    last_discovery_error: Optional[str] = None
+    last_discovery_error_at: Optional[str] = None
+    
+    # Connection tracking
+    connection_state: Literal["disconnected", "connecting", "connected", "error"] = "disconnected"
+    connection_path: Literal["direct", "proxy", "proxy-fallback-direct", "unknown"] = "unknown"
 
 
 class MigrationConfig(BaseModel):

@@ -149,23 +149,78 @@ class MCPProxyOrchestrator:
             s.settimeout(timeout)
             return s.connect_ex((host, port)) == 0
 
-    def _await_ready(self, retries: int = 10, delay: float = 0.2) -> bool:
-        """Wait briefly for proxy to bind before reporting success."""
-        try:
-            import time
-            for _ in range(max(1, retries)):
-                if self.proc is None or self.proc.poll() is not None:
-                    return False
-                if self._port_open():
-                    return True
+    def _await_ready(self, retries: int = 20, delay: float = 0.5) -> bool:
+        """Wait for proxy to be fully functional, not just port binding.
+        
+        Performs multi-phase verification:
+        1. Process is running
+        2. Port is open
+        3. HTTP service responds (health check or basic probe)
+        """
+        import time
+        import urllib.request
+        import urllib.error
+        
+        self.last_error = None
+        
+        for attempt in range(max(1, retries)):
+            # Phase 1: Check process is still running
+            if self.proc is None or self.proc.poll() is not None:
+                self.last_error = "PROC_DIED: Proxy process terminated unexpectedly"
+                if self.proc and self.proc.stderr:
+                    try:
+                        stderr_output = self.proc.stderr.read(1000).decode('utf-8', errors='ignore')
+                        if stderr_output:
+                            self.last_error += f" - stderr: {stderr_output[:200]}"
+                    except:
+                        pass
+                self._cleanup_proc()
+                return False
+            
+            # Phase 2: Check port is open
+            if not self._port_open():
+                if attempt == retries - 1:
+                    self.last_error = "PORT_TIMEOUT: Port 9090 not available after 10s"
                 time.sleep(delay)
-        except Exception:
-            pass
-        # Not ready; terminate
+                continue
+            
+            # Phase 3: Functional verification via HTTP
+            try:
+                # Try health endpoint first
+                for endpoint in ['/health', '/status', '/', '/servers']:
+                    try:
+                        url = f"http://127.0.0.1:9090{endpoint}"
+                        req = urllib.request.Request(url, method='GET')
+                        with urllib.request.urlopen(req, timeout=2) as resp:
+                            # Any HTTP response (200, 404, etc) means proxy is responding
+                            if resp.status in [200, 404, 501]:
+                                return True
+                    except urllib.error.HTTPError as e:
+                        # HTTP errors still mean the proxy is responding
+                        if e.code in [404, 501, 405]:
+                            return True
+                    except:
+                        continue
+            except Exception as e:
+                if attempt == retries - 1:
+                    self.last_error = f"HTTP_CHECK_FAILED: Proxy not responding to HTTP after {retries * delay}s"
+            
+            time.sleep(delay)
+        
+        # Not ready after all retries
+        self.last_error = self.last_error or f"TIMEOUT: Proxy readiness check timed out after {retries * delay}s"
+        self._cleanup_proc()
+        return False
+    
+    def _cleanup_proc(self):
+        """Clean up the proxy process."""
         try:
             if self.proc:
                 self.proc.terminate()
         except Exception:
             pass
         self.proc = None
-        return False
+    
+    def get_last_error(self) -> Optional[str]:
+        """Get the last error message from startup/readiness checks."""
+        return getattr(self, 'last_error', None)

@@ -92,6 +92,15 @@ class ServerStatusResponse(BaseModel):
     last_seen: str | None
     error_message: str | None
     description: str | None
+    
+    # New state fields
+    discovery_state: str = "idle"
+    discovery_started_at: str | None = None
+    discovery_finished_at: str | None = None
+    last_discovery_error: str | None = None
+    last_discovery_error_at: str | None = None
+    connection_state: str = "disconnected"
+    connection_path: str = "unknown"
 
 
 class ReconnectServerRequest(BaseModel):
@@ -118,12 +127,17 @@ class LogsResponse(BaseModel):
 async def reconnect_server(
     request: ReconnectServerRequest,
     registry: MCPServerRegistry = Depends(get_mcp_registry),  # noqa: B008
+    wait_for_discovery: bool = True,
+    discovery_timeout: float = 30.0
 ) -> dict[str, Any]:
     """
-    Reconnect a backend MCP server.
+    Reconnect a backend MCP server and optionally wait for tool discovery.
     
-    This attempts to reconnect a disconnected server without restarting the entire service.
+    This attempts to reconnect a disconnected server and discover its tools.
     """
+    from datetime import datetime
+    import asyncio
+    
     try:
         from ..main import app
         
@@ -142,43 +156,101 @@ async def reconnect_server(
             raise HTTPException(status_code=400, detail=f"Server '{request.server_id}' is disabled. Enable it first.")
         
         # Attempt to reconnect the server through the client manager
-        if hasattr(app.state, "client_manager"):
-            client_manager = app.state.client_manager
-            
-            # Get server config
-            server_config = registry.get_server(request.server_id)
-            if not server_config:
-                raise HTTPException(status_code=500, detail=f"Server configuration not found for '{request.server_id}'")
-            
-            # Disconnect first if connected
-            await client_manager.disconnect_server(request.server_id)
-            
-            # Reconnect
-            result = await client_manager.connect_server(
-                request.server_id, 
-                server_config.model_dump() if hasattr(server_config, "model_dump") else server_config.dict()
-            )
-            
-            if result["status"] == "success":
-                # Update registry with tool count
-                tools_count = result.get("tools_count", 0)
-                registry.update_server_tool_count(request.server_id, tools_count)
-                
-                # Update connection status
-                registry.set_server_connected(request.server_id, True)
-                
-                return {
-                    "status": "success",
-                    "message": f"Server '{request.server_id}' reconnected successfully",
-                    "tools_count": tools_count
-                }
-            else:
-                raise HTTPException(
-                    status_code=500, 
-                    detail=f"Failed to reconnect server '{request.server_id}': {result['message']}"
-                )
-        else:
+        if not hasattr(app.state, "client_manager"):
             raise HTTPException(status_code=500, detail="Client manager not available")
+            
+        client_manager = app.state.client_manager
+        
+        # Get server config
+        server_config = registry.get_server(request.server_id)
+        if not server_config:
+            raise HTTPException(status_code=500, detail=f"Server configuration not found for '{request.server_id}'")
+        
+        # Update connection state
+        registry.set_connection_state(request.server_id, "connecting")
+        registry.set_discovery_state(request.server_id, "pending")
+        
+        # Disconnect first if connected
+        await client_manager.disconnect_server(request.server_id)
+        
+        # Reconnect
+        connect_result = await client_manager.connect_server(
+            request.server_id, 
+            server_config.model_dump() if hasattr(server_config, "model_dump") else server_config.dict()
+        )
+        
+        if connect_result["status"] != "success":
+            registry.set_connection_state(request.server_id, "error")
+            registry.set_server_error(request.server_id, connect_result.get("message", "Connection failed"))
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to reconnect server '{request.server_id}': {connect_result['message']}"
+            )
+        
+        # Update connection success
+        registry.set_server_connected(request.server_id, True)
+        registry.set_connection_state(request.server_id, "connected", 
+                                     path=connect_result.get("connection_path", "unknown"))
+        
+        # Wait for tool discovery if requested
+        tools_count = 0
+        discovery_error = None
+        
+        if wait_for_discovery:
+            try:
+                # Start discovery
+                registry.set_discovery_state(request.server_id, "running", 
+                                           started_at=datetime.now().isoformat())
+                
+                # Perform discovery with timeout
+                discovery_result = await asyncio.wait_for(
+                    client_manager.discover_tools_now(request.server_id),
+                    timeout=discovery_timeout
+                )
+                
+                if discovery_result["status"] == "success":
+                    tools_count = discovery_result.get("tools_count", 0)
+                    registry.update_server_tool_count(request.server_id, tools_count)
+                    registry.set_discovery_state(request.server_id, "success", 
+                                               finished_at=datetime.now().isoformat())
+                    registry.clear_last_error(request.server_id)
+                else:
+                    discovery_error = discovery_result.get("message", "Discovery failed")
+                    registry.set_discovery_state(request.server_id, "error",
+                                               finished_at=datetime.now().isoformat())
+                    registry.set_last_discovery_error(request.server_id, discovery_error,
+                                                     when=datetime.now().isoformat())
+                    
+            except asyncio.TimeoutError:
+                discovery_error = f"Discovery timed out after {discovery_timeout}s"
+                registry.set_discovery_state(request.server_id, "timeout",
+                                           finished_at=datetime.now().isoformat())
+                registry.set_last_discovery_error(request.server_id, discovery_error,
+                                                 when=datetime.now().isoformat())
+            except Exception as e:
+                discovery_error = str(e)
+                registry.set_discovery_state(request.server_id, "error",
+                                           finished_at=datetime.now().isoformat())
+                registry.set_last_discovery_error(request.server_id, discovery_error,
+                                                 when=datetime.now().isoformat())
+        else:
+            # Just get current tool count if not waiting
+            tools_count = connect_result.get("tools_count", 0)
+            registry.update_server_tool_count(request.server_id, tools_count)
+        
+        # Get updated status
+        final_status = registry.get_server_status(request.server_id)
+        
+        return {
+            "status": "success",
+            "message": f"Server '{request.server_id}' reconnected successfully",
+            "server_id": request.server_id,
+            "connection_state": final_status.connection_state if final_status else "unknown",
+            "connection_path": final_status.connection_path if final_status else "unknown",
+            "discovery_state": final_status.discovery_state if final_status else "unknown",
+            "tools_count": tools_count,
+            "discovery_error": discovery_error
+        }
         
     except HTTPException:
         raise
@@ -213,28 +285,90 @@ async def discover_tools_now(
     registry: MCPServerRegistry = Depends(get_mcp_registry),  # noqa: B008
 ) -> dict[str, Any]:
     """Force immediate tool discovery for a server and update registry."""
+    from datetime import datetime
+    
     try:
         from ..main import app
         if not hasattr(app.state, "client_manager"):
             raise HTTPException(status_code=500, detail="Client manager not available")
 
         client_manager = app.state.client_manager
+        
         # Ensure server exists in registry
         if request.server_id not in registry.list_active_servers():
             raise HTTPException(status_code=404, detail=f"Server '{request.server_id}' not found")
-
-        result = await client_manager.discover_tools_now(request.server_id)
-        if result.get("status") != "success":
-            raise HTTPException(status_code=500, detail=result.get("message", "discover failed"))
-
-        # Return current status snapshot for convenience
-        st = registry.get_server_status(request.server_id)
-        return {
-            "status": "success",
-            "server": request.server_id,
-            "tools_count": result.get("tools_count", 0),
-            "connected": bool(st.connected) if st else False,
-        }
+        
+        # Get current server status
+        server_status = registry.get_server_status(request.server_id)
+        if not server_status:
+            raise HTTPException(status_code=500, detail=f"Server status not found for '{request.server_id}'")
+        
+        # Check connection state and connect if needed
+        if server_status.connection_state in ["disconnected", "error"]:
+            logger.info(f"Server {request.server_id} is {server_status.connection_state}, attempting connection first")
+            
+            # Get server config and connect
+            server_config = registry.get_server(request.server_id)
+            if not server_config:
+                raise HTTPException(status_code=500, detail=f"Server configuration not found")
+            
+            registry.set_connection_state(request.server_id, "connecting")
+            connect_result = await client_manager.connect_server(
+                request.server_id,
+                server_config.model_dump() if hasattr(server_config, "model_dump") else server_config.dict()
+            )
+            
+            if connect_result["status"] != "success":
+                registry.set_connection_state(request.server_id, "error")
+                registry.set_server_error(request.server_id, connect_result.get("message"))
+                raise HTTPException(status_code=500, detail=f"Failed to connect: {connect_result.get('message')}")
+            
+            registry.set_server_connected(request.server_id, True)
+            registry.set_connection_state(request.server_id, "connected",
+                                        path=connect_result.get("connection_path", "unknown"))
+        
+        # Update discovery state
+        registry.set_discovery_state(request.server_id, "running",
+                                    started_at=datetime.now().isoformat())
+        
+        # Perform discovery
+        try:
+            result = await client_manager.discover_tools_now(request.server_id)
+            
+            if result.get("status") == "success":
+                tools_count = result.get("tools_count", 0)
+                registry.update_server_tool_count(request.server_id, tools_count)
+                registry.set_discovery_state(request.server_id, "success",
+                                           finished_at=datetime.now().isoformat())
+                registry.clear_last_error(request.server_id)
+                
+                # Get updated status
+                st = registry.get_server_status(request.server_id)
+                
+                return {
+                    "status": "success",
+                    "server": request.server_id,
+                    "tools_count": tools_count,
+                    "connected": bool(st.connected) if st else False,
+                    "connection_state": st.connection_state if st else "unknown",
+                    "connection_path": st.connection_path if st else "unknown",
+                    "discovery_state": st.discovery_state if st else "unknown"
+                }
+            else:
+                error_msg = result.get("message", "Discovery failed")
+                registry.set_discovery_state(request.server_id, "error",
+                                           finished_at=datetime.now().isoformat())
+                registry.set_last_discovery_error(request.server_id, error_msg,
+                                                 when=datetime.now().isoformat())
+                raise HTTPException(status_code=500, detail=error_msg)
+                
+        except Exception as e:
+            registry.set_discovery_state(request.server_id, "error",
+                                       finished_at=datetime.now().isoformat())
+            registry.set_last_discovery_error(request.server_id, str(e),
+                                            when=datetime.now().isoformat())
+            raise
+            
     except HTTPException:
         raise
     except Exception as e:
@@ -327,7 +461,15 @@ async def list_servers(
                     health_status=status.health_status,
                     last_seen=status.last_seen,
                     error_message=status.error_message,
-                    description=getattr(status, 'description', None)
+                    description=getattr(status, 'description', None),
+                    # Include all new state fields
+                    discovery_state=getattr(status, 'discovery_state', 'idle'),
+                    discovery_started_at=getattr(status, 'discovery_started_at', None),
+                    discovery_finished_at=getattr(status, 'discovery_finished_at', None),
+                    last_discovery_error=getattr(status, 'last_discovery_error', None),
+                    last_discovery_error_at=getattr(status, 'last_discovery_error_at', None),
+                    connection_state=getattr(status, 'connection_state', 'disconnected'),
+                    connection_path=getattr(status, 'connection_path', 'unknown')
                 ))
         
         return server_statuses

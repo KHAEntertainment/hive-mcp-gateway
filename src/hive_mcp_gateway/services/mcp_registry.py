@@ -283,6 +283,36 @@ class MCPServerRegistry:
         if name in self._server_status:
             self._server_status[name].error_message = error_message
     
+    def set_connection_state(self, name: str, state: str, path: Optional[str] = None) -> None:
+        """Set the connection state and path for a server."""
+        if name in self._server_status:
+            self._server_status[name].connection_state = state
+            if path:
+                self._server_status[name].connection_path = path
+    
+    def set_discovery_state(self, name: str, state: str, started_at: Optional[str] = None, finished_at: Optional[str] = None) -> None:
+        """Set the discovery state for a server."""
+        if name in self._server_status:
+            self._server_status[name].discovery_state = state
+            if started_at:
+                self._server_status[name].discovery_started_at = started_at
+            if finished_at:
+                self._server_status[name].discovery_finished_at = finished_at
+    
+    def set_last_discovery_error(self, name: str, error: Optional[str], when: Optional[str] = None) -> None:
+        """Set the last discovery error for a server."""
+        if name in self._server_status:
+            self._server_status[name].last_discovery_error = error
+            if when:
+                self._server_status[name].last_discovery_error_at = when
+    
+    def clear_last_error(self, name: str) -> None:
+        """Clear all error messages for a server."""
+        if name in self._server_status:
+            self._server_status[name].error_message = None
+            self._server_status[name].last_discovery_error = None
+            self._server_status[name].last_discovery_error_at = None
+    
     def update_server_health_status(self, name: str, health_status: Literal["healthy", "unhealthy", "unknown"], last_check: Optional[str] = None) -> None:
         """Update the health status of a server."""
         if name in self._server_status:
