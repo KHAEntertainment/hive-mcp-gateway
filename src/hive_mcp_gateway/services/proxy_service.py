@@ -162,6 +162,19 @@ class ProxyService:
         tool = self.tool_repository.get_tool(tool_id)
         if not tool:
             raise ValueError(f"Tool {tool_id} not found in repository")
+        # Enforce gating if available
+        try:
+            from ..main import app  # late import to avoid cycles
+            gating = getattr(app.state, 'gating', None) if hasattr(app, 'state') else None
+            if gating is not None and not gating.is_published(tool_id):
+                raise ValueError(
+                    f"Tool '{tool_id}' is not published (gated). Use /api/tools/provision to publish it first."
+                )
+        except ValueError:
+            raise
+        except Exception:
+            # If gating unavailable, default to current behavior
+            pass
         
         # Execute via client manager - real-time loading happens here
         return await self.client_manager.execute_tool(server_name, tool_name, arguments)
