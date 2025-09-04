@@ -88,6 +88,25 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing FileWatcherService...")
         file_watcher = FileWatcherService(config_manager, registry)  # pass registry instead of client_manager
 
+        # Optionally manage an embedded MCP Proxy for stdio servers
+        proxy_url = getattr(app_settings, "proxy_url", None)
+        if getattr(app_settings, "manage_proxy", False):
+            try:
+                from pathlib import Path
+                run_dir = Path(__file__).resolve().parents[2] / "run"
+                orchestrator = MCPProxyOrchestrator(config_path, run_dir)
+                proxy_conf = orchestrator.build_proxy_config(config)
+                conf_file = orchestrator.write_config_file(proxy_conf)
+                if orchestrator.try_start(conf_file):
+                    proxy_url = orchestrator.base_url
+                    app_settings.proxy_url = proxy_url
+                    logger.info(f"Managed MCP Proxy started at {proxy_url}")
+                else:
+                    logger.warning("MCP Proxy could not be started automatically (binary/docker not found)")
+                app.state.proxy_orchestrator = orchestrator
+            except Exception as e:
+                logger.warning(f"Failed to start managed MCP Proxy: {e}")
+
         # Store services in app state before spawning background work
         logger.info("Storing services in app state...")
         app.state.client_manager = client_manager
@@ -175,6 +194,14 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, "client_manager"):
         logger.info("Disconnecting all MCP servers...")
         await app.state.client_manager.disconnect_all()
+    # Stop managed proxy
+    orchestrator = getattr(app.state, "proxy_orchestrator", None)
+    if orchestrator:
+        try:
+            logger.info("Stopping managed MCP Proxy...")
+            orchestrator.stop()
+        except Exception:
+            pass
     
     logger.info("Shutdown complete")
     logger.info("=== LIFESPAN SHUTDOWN PHASE COMPLETE ===")

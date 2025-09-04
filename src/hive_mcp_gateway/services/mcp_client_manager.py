@@ -37,9 +37,22 @@ class MCPClientManager:
         
         try:
             if server_type == "stdio":
+                # Auto-route to proxy if configured to manage proxy and a base URL is set
                 if via == "proxy":
                     result = await self._connect_proxy_server(name, config)
                 else:
+                    try:
+                        from ..main import app  # late import
+                        settings = getattr(app.state, "app_settings", None)
+                        proxy_url = getattr(settings, "proxy_url", None) if settings else None
+                        auto_proxy = getattr(settings, "auto_proxy_stdio", True) if settings else True
+                        if auto_proxy and proxy_url:
+                            # Enrich config with proxy endpoint hint
+                            cfg = dict(config)
+                            cfg.setdefault("url", f"{proxy_url.rstrip('/')}/{name}/sse")
+                            return await self._connect_proxy_server(name, cfg)
+                    except Exception:
+                        pass
                     result = await self._connect_stdio_server(name, config)
             elif server_type in ["sse", "streamable-http"]:
                 result = await self._connect_http_server(name, config)
@@ -107,10 +120,19 @@ class MCPClientManager:
         try:
             logger.info(f"Attempting to connect to stdio MCP server: {name}")
             
+            # Merge environment with banner/log suppression for stdio servers that print to stdout
+            base_env = dict(config.get("env", {}) or {})
+            base_env.setdefault("PYTHONUNBUFFERED", "1")
+            base_env.setdefault("NO_COLOR", "1")
+            # Common FastMCP banners/logging suppression knobs (best-effort)
+            base_env.setdefault("FASTMCP_NO_BANNER", "1")
+            base_env.setdefault("FASTMCP_DISABLE_BANNER", "1")
+            base_env.setdefault("FASTMCP_QUIET", "1")
+
             server_params = StdioServerParameters(
                 command=config["command"],
                 args=config.get("args", []),
-                env=config.get("env", {})
+                env=base_env,
             )
             
             # Create context manager and store it
@@ -274,20 +296,93 @@ class MCPClientManager:
             return {"status": "error", "message": str(error), "tools_count": 0}
 
     async def _connect_proxy_server(self, name: str, config: dict) -> Dict[str, Any]:
-        """Connect to a stdio server via an external MCP Proxy (skeleton).
+        """Connect to a server via MCP Proxy using SSE transport.
 
-        This transport treats the external proxy as the orchestrator. In this initial
-        scaffold, we return a clear error unless proxy integration is fully configured
-        later. Leaving this behind a per-server `via: proxy` flag means no behavior
-        change for existing configs.
+        Resolves proxy base from config or global settings and connects to
+        `{base}/{name}/sse`. On success, initializes a ClientSession and starts
+        background tool discovery just like stdio.
         """
         try:
-            proxy_url = config.get("proxy_url") or None
-            if not proxy_url:
-                # In future: read from global config (tool_gating.proxy_url)
-                return {"status": "error", "message": "proxy mode selected but proxy_url not configured", "tools_count": 0}
-        except Exception:
-            return {"status": "error", "message": "proxy mode not configured", "tools_count": 0}
+            # Resolve proxy endpoint
+            proxy_endpoint = config.get("url") or config.get("proxy_url")
+            if not proxy_endpoint:
+                try:
+                    from ..main import app  # late import
+                    app_settings = getattr(app.state, "app_settings", None) if hasattr(app, "state") else None
+                    base = getattr(app_settings, "proxy_url", None) if app_settings else None
+                except Exception:
+                    base = None
+                if not base:
+                    return {"status": "error", "message": "proxy_url not configured (set toolGating.proxyUrl)", "tools_count": 0}
+                proxy_endpoint = f"{base.rstrip('/')}/{name}/sse"
+
+            # Optional headers
+            headers = config.get("headers", {}) or {}
+
+            # Connect via SSE client from MCP SDK
+            from mcp.client.sse import sse_client  # type: ignore
+            from mcp import ClientSession  # type: ignore
+            import asyncio as _asyncio
+
+            ctx = sse_client(proxy_endpoint, headers=headers)
+            self._stdio_contexts[name] = ctx  # reuse storage for lifecycle mgmt
+            read_stream, write_stream = await _asyncio.wait_for(ctx.__aenter__(), timeout=180)
+
+            session = ClientSession(read_stream, write_stream)
+            self.sessions[name] = session
+            await _asyncio.wait_for(session.initialize(), timeout=180)
+
+            # Mark as connected and begin with 0 tool count
+            try:
+                from ..main import app  # late import
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.set_server_connected(name, True)
+                    registry.update_server_tool_count(name, 0)
+            except Exception:
+                pass
+
+            async def _discover_and_update():
+                try:
+                    tools_response = await _asyncio.wait_for(session.list_tools(), timeout=180)
+                    tools = tools_response.tools if hasattr(tools_response, 'tools') else []
+                    self.server_tools[name] = tools
+                    self._server_info[name] = {
+                        "config": config,
+                        "connected": True,
+                        "tools_discovered": len(tools),
+                        "proxy": proxy_endpoint,
+                    }
+                    try:
+                        from ..main import app  # late import
+                        registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                        if registry:
+                            registry.update_server_tool_count(name, len(tools))
+                    except Exception:
+                        pass
+                except Exception as e:
+                    logger.error(f"Proxy tool discovery failed for {name}: {e}")
+
+            try:
+                _asyncio.create_task(_discover_and_update())
+            except Exception:
+                pass
+
+            return {"status": "success", "message": f"Connected to proxy server {name}", "tools_count": 0}
+
+        except Exception as e:
+            # Cleanup on error
+            if name in self._stdio_contexts:
+                try:
+                    await self._stdio_contexts[name].__aexit__(None, None, None)
+                except Exception:
+                    pass
+                del self._stdio_contexts[name]
+            if name in self.sessions:
+                del self.sessions[name]
+            self._server_info[name] = {"config": config, "connected": False, "error": str(e)}
+            self.server_tools[name] = []
+            return {"status": "error", "message": str(e), "tools_count": 0}
 
     async def discover_tools_now(self, name: str) -> Dict[str, Any]:
         """Force an immediate tool discovery for a server and update registry.

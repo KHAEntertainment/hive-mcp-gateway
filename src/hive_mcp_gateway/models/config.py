@@ -130,6 +130,8 @@ class ToolGatingSettings(BaseModel):
     # Gating defaults and optional proxy
     default_policy: Literal["deny", "allow"] = Field(default="deny", alias="defaultPolicy")
     proxy_url: Optional[str] = Field(default=None, alias="proxyUrl")
+    manage_proxy: bool = Field(default=False, alias="manageProxy")
+    auto_proxy_stdio: bool = Field(default=True, alias="autoProxyStdio")
     
     class Config:
         validate_by_name = True
