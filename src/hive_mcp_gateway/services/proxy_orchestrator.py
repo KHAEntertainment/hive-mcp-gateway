@@ -110,6 +110,18 @@ class MCPProxyOrchestrator:
             ])
         except Exception:
             pass
+        
+        # Add common user-local installation paths
+        import os
+        home = Path.home()
+        possible.extend([
+            home / ".local" / "bin" / "mcp-proxy",
+            home / ".local" / "bin" / "mcp_proxy",
+            Path("/usr/local/bin/mcp-proxy"),
+            Path("/usr/local/bin/mcp_proxy"),
+            Path("/opt/homebrew/bin/mcp-proxy"),
+            Path("/opt/homebrew/bin/mcp_proxy"),
+        ])
         for p in possible:
             if p.exists():
                 self.proc = subprocess.Popen([str(p), "--config", str(config_file)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
