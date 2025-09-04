@@ -20,6 +20,7 @@ from .services.repository import InMemoryToolRepository
 from .services.mcp_registry import MCPServerRegistry
 from .services.auto_registration import AutoRegistrationService
 from .services.error_handler import ErrorHandler
+from .services.proxy_orchestrator import MCPProxyOrchestrator
 
 # Configure logging with debug level
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -66,7 +66,25 @@ class MCPProxyOrchestrator:
         return path
 
     def try_start(self, config_file: Path) -> bool:
-        # Prefer native binary if available
+        # Prefer bundled binary if available
+        possible: list[Path] = []
+        try:
+            proj_root = Path(__file__).resolve().parents[2]
+            possible.extend([
+                proj_root / "Resources" / "bin" / "mcp-proxy",
+                proj_root / "Resources" / "bin" / "mcp_proxy",
+                proj_root / "bin" / "mcp-proxy",
+                proj_root / "bin" / "mcp_proxy",
+                self.run_dir / "bin" / "mcp-proxy",
+                self.run_dir / "bin" / "mcp_proxy",
+            ])
+        except Exception:
+            pass
+        for p in possible:
+            if p.exists():
+                self.proc = subprocess.Popen([str(p), "--config", str(config_file)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                return True
+        # Then try PATH
         binary = shutil.which("mcp-proxy") or shutil.which("mcp_proxy")
         if binary:
             self.proc = subprocess.Popen([binary, "--config", str(config_file)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -93,4 +111,3 @@ class MCPProxyOrchestrator:
             except Exception:
                 pass
         self.proc = None
-
