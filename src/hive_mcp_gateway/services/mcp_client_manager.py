@@ -33,10 +33,14 @@ class MCPClientManager:
             config: Server configuration with command, args, env or url, headers
         """
         server_type = config.get("type", "stdio")
+        via = config.get("via", "direct")
         
         try:
             if server_type == "stdio":
-                result = await self._connect_stdio_server(name, config)
+                if via == "proxy":
+                    result = await self._connect_proxy_server(name, config)
+                else:
+                    result = await self._connect_stdio_server(name, config)
             elif server_type in ["sse", "streamable-http"]:
                 result = await self._connect_http_server(name, config)
             else:
@@ -268,6 +272,22 @@ class MCPClientManager:
             }
             self.server_tools[name] = []
             return {"status": "error", "message": str(error), "tools_count": 0}
+
+    async def _connect_proxy_server(self, name: str, config: dict) -> Dict[str, Any]:
+        """Connect to a stdio server via an external MCP Proxy (skeleton).
+
+        This transport treats the external proxy as the orchestrator. In this initial
+        scaffold, we return a clear error unless proxy integration is fully configured
+        later. Leaving this behind a per-server `via: proxy` flag means no behavior
+        change for existing configs.
+        """
+        try:
+            proxy_url = config.get("proxy_url") or None
+            if not proxy_url:
+                # In future: read from global config (tool_gating.proxy_url)
+                return {"status": "error", "message": "proxy mode selected but proxy_url not configured", "tools_count": 0}
+        except Exception:
+            return {"status": "error", "message": "proxy mode not configured", "tools_count": 0}
 
     async def discover_tools_now(self, name: str) -> Dict[str, Any]:
         """Force an immediate tool discovery for a server and update registry.

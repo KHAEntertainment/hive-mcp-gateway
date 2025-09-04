@@ -41,6 +41,38 @@ Follow-up (GUI Notice)
   - After service start/discovery, GUI shows non-zero tool counts matching API values.
   - Restarting/reconnecting a server updates counts within the GUI without full app restart.
 
+## 12) Hybrid stdio via MCP Proxy with Gateway Tool Gating
+- Summary: Preserve minimal tool exposure (tool gating) while gaining robust stdio lifecycle by optionally delegating stdio process management to MCP Proxy, keeping the gateway as the single client-facing MCP server that filters/publishes a curated subset of tools.
+- Approach:
+  - Gateway remains the MCP surface. It intercepts `listTools` and returns only the currently “published” tools (deny-by-default policy), and enforces gating on `callTool`.
+  - Backends:
+    - HTTP/SSE servers continue directly (e.g., exa).
+    - stdio servers can run either directly (current path) or via MCP Proxy (`via: proxy`) per server in YAML.
+  - Discovery runs in background (proxy/direct) and populates a registry; publication is a separate step driven by config and provisioning.
+- Config (YAML):
+  - `toolGating.defaultPolicy: deny|allow`
+  - Per-server `options.toolFilter` (allow/deny lists, wildcards, tags).
+  - Optional `proxy.url` and per-server `via: proxy|direct`.
+- API additions:
+  - `POST /api/tools/provision` to publish a set (ids/tags/patterns, optional `max_tools`).
+  - `GET /api/tools/published` to inspect current exposure.
+- Gateway changes:
+  - Add `GatingService` managing discovered vs published sets.
+  - Intercept `listTools` to return only published subset; validate in `callTool`.
+  - Add `proxy-http` transport in `MCPClientManager` to talk to MCP Proxy for stdio.
+- GUI changes:
+  - Show Discovered vs Published counts per server.
+  - Add simple “Publish Selected” flow (MVP: publish all from a server; later: select by tag/name).
+  - Respect `via: proxy` by directing Discover/Reconnect to Proxy endpoints.
+- Acceptance Criteria:
+  - With `via: proxy`, stdio servers remain stable even under slow start; GUI shows connected quickly and tool counts update after discovery.
+  - `listTools` from the gateway returns only the published set (<= configured `max_tools`).
+  - `callTool` only executes for published tools; others return a clear gating error or guidance to provision.
+  - Disabling proxy mode preserves current direct-stdio behavior.
+- Notes:
+  - Reference donor project intent (tool-gating) while integrating optional MCP Proxy: https://github.com/ajbmachon/tool-gating-mcp
+  - Optional migration path; proxy can be enabled per server for A/B testing.
+
 ## Tracking & Workflow
 - Primary: GitHub Issues (preferred for assignment, labels, and discussion).
 - Local: This `TASKS.md` stays concise with acceptance criteria and links to issues once created.

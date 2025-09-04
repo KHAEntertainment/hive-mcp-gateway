@@ -117,6 +117,7 @@ class AutoRegistrationService:
             # Convert BackendServerConfig to dict format for client manager
             server_dict = {
                 "type": config.type,
+                "via": getattr(config, "via", "direct"),
                 "command": config.command,
                 "args": config.args or [],
                 "env": config.env or {},

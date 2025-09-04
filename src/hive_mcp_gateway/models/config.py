@@ -80,6 +80,8 @@ class ServerMetadata(BaseModel):
 class BackendServerConfig(BaseModel):
     """Configuration for a backend MCP server."""
     type: Literal["stdio", "sse", "streamable-http"] = "stdio"
+    # Transport hint: direct stdio (default) or via external proxy supervisor
+    via: Literal["direct", "proxy"] = "direct"
     
     # For stdio type
     command: Optional[str] = None
@@ -101,7 +103,7 @@ class BackendServerConfig(BaseModel):
     @validator('command')
     def validate_stdio_command(cls, v, values):
         """Validate that stdio type has command specified."""
-        if values.get('type') == 'stdio' and not v:
+        if values.get('type') == 'stdio' and values.get('via', 'direct') == 'direct' and not v:
             raise ValueError('command is required for stdio type servers')
         return v
 
