@@ -82,6 +82,9 @@ async def lifespan(app: FastAPI):
         tool_repository = InMemoryToolRepository()
         logger.info("Initializing ProxyService...")
         proxy_service = ProxyService(client_manager, tool_repository)
+        # Initialize gating service (skeleton) and honor default policy from settings
+        from .services.gating_service import GatingService
+        gating_service = GatingService(default_policy=getattr(app_settings, 'default_policy', 'deny'))
         logger.info("Initializing FileWatcherService...")
         file_watcher = FileWatcherService(config_manager, registry)  # pass registry instead of client_manager
 
@@ -89,6 +92,7 @@ async def lifespan(app: FastAPI):
         logger.info("Storing services in app state...")
         app.state.client_manager = client_manager
         app.state.proxy_service = proxy_service
+        app.state.gating = gating_service
         app.state.config_manager = config_manager
         app.state.file_watcher = file_watcher
         app.state.app_settings = app_settings

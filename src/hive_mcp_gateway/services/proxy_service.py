@@ -26,8 +26,16 @@ class ProxyService:
         
         # Get registry from app state if available
         registry = getattr(app.state, 'registry', None) if hasattr(app, 'state') else None
-        
+        # Optional gating service
+        gating = getattr(app.state, 'gating', None) if hasattr(app, 'state') else None
+
         for server_name, tools in self.client_manager.server_tools.items():
+            # Update gating discovered list (names only)
+            try:
+                if gating is not None:
+                    gating.set_discovered(server_name, [getattr(t, 'name', 'unknown') for t in tools])
+            except Exception:
+                pass
             for tool in tools:
                 # Convert MCP tool to our Tool model
                 tool_obj = Tool(

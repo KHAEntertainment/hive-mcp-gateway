@@ -127,6 +127,9 @@ class ToolGatingSettings(BaseModel):
     config_watch_enabled: bool = Field(default=True, alias="configWatchEnabled")
     health_check_interval: int = Field(default=30, alias="healthCheckInterval")  # seconds
     connection_timeout: int = Field(default=10, alias="connectionTimeout")  # seconds
+    # Gating defaults and optional proxy
+    default_policy: Literal["deny", "allow"] = Field(default="deny", alias="defaultPolicy")
+    proxy_url: Optional[str] = Field(default=None, alias="proxyUrl")
     
     class Config:
         validate_by_name = True
