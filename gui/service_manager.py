@@ -184,25 +184,55 @@ class ServiceManager(QObject):
                 self.status_changed.emit("stopped")
                 return True
             
-            # Try graceful shutdown first
+            stopped = False
+            # If we own the process, try QProcess first
             if self.tool_gating_process and self.tool_gating_process.state() == QProcess.ProcessState.Running:
                 self.tool_gating_process.terminate()
-                
-                # Wait for graceful shutdown
-                if self.tool_gating_process.waitForFinished(10000):
+                if self.tool_gating_process.waitForFinished(8000):
                     logger.info("Hive MCP Gateway service stopped gracefully")
+                    stopped = True
                 else:
-                    # Force kill if graceful shutdown fails
                     logger.warning("Graceful shutdown failed, force killing process")
                     self.tool_gating_process.kill()
-                    self.tool_gating_process.waitForFinished(5000)
-            
-            # Clean up process tracking
-            self.tool_gating_process = None
-            self.tool_gating_pid = None
+                    self.tool_gating_process.waitForFinished(4000)
+                    stopped = True
+                self.tool_gating_process = None
+                self.tool_gating_pid = None
+            else:
+                # Attempt PID-file-based shutdown when we don't own the process
+                try:
+                    proj_root = Path(__file__).resolve().parent.parent
+                    pid_path = proj_root / 'run' / 'backend.pid'
+                    if pid_path.exists():
+                        pid = int(pid_path.read_text().strip())
+                        import os, signal, time as _time
+                        logger.info(f"Attempting to terminate backend PID {pid} from PID file")
+                        os.kill(pid, signal.SIGTERM)
+                        # wait up to 10s
+                        for _ in range(20):
+                            try:
+                                os.kill(pid, 0)
+                                _time.sleep(0.5)
+                            except OSError:
+                                stopped = True
+                                break
+                        if not stopped:
+                            logger.warning("SIGTERM failed, sending SIGKILL")
+                            try:
+                                os.kill(pid, signal.SIGKILL)
+                                stopped = True
+                            except Exception as e:
+                                logger.error(f"SIGKILL failed: {e}")
+                        # cleanup pid file
+                        try:
+                            pid_path.unlink()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.error(f"PID-file stop failed: {e}")
             
             # Verify service is stopped
-            if not self.is_service_running():
+            if stopped or not self.is_service_running():
                 logger.info("Hive MCP Gateway service stopped successfully")
                 self.status_changed.emit("stopped")
                 return True
@@ -309,6 +339,30 @@ class ServiceManager(QObject):
                 logs = content if not logs else (logs + ["", "--- tail backend.log ---", *content[-lines:]])
         except Exception:
             pass
+        # HTTP fallback if file read produced nothing
+        if not logs and self.is_service_running():
+            try:
+                # Use last known base if set
+                bases: List[str] = []
+                if self.last_api_base:
+                    bases.append(self.last_api_base)
+                bases.extend([
+                    f"http://localhost:{self.tool_gating_port}",
+                    f"http://127.0.0.1:{self.tool_gating_port}",
+                ])
+                for base in bases:
+                    try:
+                        resp = requests.get(f"{base}/api/mcp/logs", params={"lines": lines}, timeout=5)
+                        if resp.status_code == 200:
+                            data = resp.json() or {}
+                            arr = data.get("lines") or []
+                            if arr:
+                                self.last_api_base = base
+                                return arr
+                    except Exception:
+                        continue
+            except Exception:
+                pass
         return logs[-lines:] if len(logs) > lines else logs
 
     def get_proxy_status(self) -> Optional[Dict[str, Any]]:

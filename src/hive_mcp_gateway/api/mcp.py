@@ -38,6 +38,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from typing import List as _List
 
 from ..models.mcp_config import MCPServerConfig, MCPServerRegistration
 from ..services.mcp_registry import MCPDiscoveryService, MCPServerRegistry
@@ -106,6 +107,10 @@ class ProxyStatusResponse(BaseModel):
     running: bool
     managed: bool
     base_url: str | None
+
+
+class LogsResponse(BaseModel):
+    lines: _List[str]
 
 
 @router.post("/reconnect", operation_id="reconnect_server")
@@ -254,6 +259,25 @@ async def proxy_status() -> ProxyStatusResponse:
         return ProxyStatusResponse(running=running, managed=managed, base_url=base)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get proxy status: {str(e)}")
+
+
+@router.get("/logs", response_model=LogsResponse, operation_id="tail_logs")
+async def tail_logs(lines: int = 200) -> LogsResponse:
+    """Tail the backend log file (run/backend.log)."""
+    try:
+        from pathlib import Path
+        from ..main import app
+        # Determine run dir relative to project root
+        proj_root = Path(__file__).resolve().parents[3]
+        log_path = proj_root / 'run' / 'backend.log'
+        if not log_path.exists():
+            return LogsResponse(lines=[])
+        content = log_path.read_text(encoding='utf-8', errors='ignore').splitlines()
+        if lines > 0 and len(content) > lines:
+            content = content[-lines:]
+        return LogsResponse(lines=content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read logs: {str(e)}")
 
 
 @router.get("/debug/registry", operation_id="debug_registry")

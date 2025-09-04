@@ -3,6 +3,7 @@
 print("=== FILE IS BEING IMPORTED ===")
 
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from typing import Any
 from contextlib import asynccontextmanager
@@ -22,8 +23,21 @@ from .services.auto_registration import AutoRegistrationService
 from .services.error_handler import ErrorHandler
 from .services.proxy_orchestrator import MCPProxyOrchestrator
 
-# Configure logging with debug level
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure logging: console + rotating file under run/backend.log
+_log_formatter = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+logging.basicConfig(level=logging.DEBUG, format=_log_formatter)
+try:
+    from pathlib import Path
+    proj_root = Path(__file__).resolve().parents[2]
+    run_dir = proj_root / 'run'
+    run_dir.mkdir(parents=True, exist_ok=True)
+    file_handler = RotatingFileHandler(run_dir / 'backend.log', maxBytes=2_000_000, backupCount=3)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(_log_formatter))
+    logging.getLogger().addHandler(file_handler)
+except Exception:
+    # best-effort: continue with console logging only
+    pass
 logger = logging.getLogger(__name__)
 
 
@@ -158,6 +172,16 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.exception(f"Background startup pipeline error: {e}")
 
+        # Write PID for external managers/GUI
+        try:
+            from pathlib import Path
+            proj_root = Path(__file__).resolve().parents[2]
+            run_dir = proj_root / 'run'
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / 'backend.pid').write_text(str(os.getpid()), encoding='utf-8')
+        except Exception:
+            pass
+
         logger.info("Spawning background startup tasks (fast start)...")
         startup_task = asyncio.create_task(_background_startup(), name="hmg_background_startup")
         app.state.startup_task = startup_task
@@ -195,6 +219,15 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, "client_manager"):
         logger.info("Disconnecting all MCP servers...")
         await app.state.client_manager.disconnect_all()
+    # Remove PID file
+    try:
+        from pathlib import Path
+        proj_root = Path(__file__).resolve().parents[2]
+        pid_path = proj_root / 'run' / 'backend.pid'
+        if pid_path.exists():
+            pid_path.unlink()
+    except Exception:
+        pass
     # Stop managed proxy
     orchestrator = getattr(app.state, "proxy_orchestrator", None)
     if orchestrator:

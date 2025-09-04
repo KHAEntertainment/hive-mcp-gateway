@@ -115,9 +115,14 @@ class StatusWidget(QWidget):
         # Proxy controls
         proxy_row = QHBoxLayout()
         self.manage_proxy_chk = QCheckBox("Managed Proxy")
+        self.manage_proxy_chk.setMinimumWidth(140)
         self.auto_proxy_stdio_chk = QCheckBox("Auto-Proxy stdio")
+        self.auto_proxy_stdio_chk.setMinimumWidth(160)
+        self.proxy_status_label = QLabel("Unknown")
+        self.proxy_status_label.setObjectName("proxyStatusLabel")
         proxy_row.addWidget(self.manage_proxy_chk)
         proxy_row.addWidget(self.auto_proxy_stdio_chk)
+        proxy_row.addWidget(self.proxy_status_label)
         proxy_row.addStretch()
         status_layout.addRow("Proxy:", proxy_row)
 
@@ -610,6 +615,8 @@ class MainWindow(QMainWindow):
                     self.status_widget.manage_proxy_chk.setChecked(getattr(cfg.tool_gating, 'manage_proxy', False))
                 if hasattr(self.status_widget, 'auto_proxy_stdio_chk'):
                     self.status_widget.auto_proxy_stdio_chk.setChecked(getattr(cfg.tool_gating, 'auto_proxy_stdio', True))
+                # Initial proxy status fetch
+                QTimer.singleShot(300, self.update_proxy_status)
         except Exception:
             pass
         # Wire toggle handlers
@@ -618,6 +625,11 @@ class MainWindow(QMainWindow):
             self.status_widget.auto_proxy_stdio_chk.toggled.connect(self.on_auto_proxy_stdio_toggled)
         except Exception:
             pass
+
+        # Proxy status poller
+        self.proxy_timer = QTimer()
+        self.proxy_timer.timeout.connect(self.update_proxy_status)
+        self.proxy_timer.start(12000)
     
     def update_service_info_only(self):
         """Update only the service information, not the servers."""
@@ -1480,3 +1492,17 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(200, self.restart_service)
         except Exception as e:
             self.show_status_message(f"Failed to save Auto-Proxy stdio: {e}")
+
+    def update_proxy_status(self):
+        try:
+            if not self.service_manager:
+                return
+            status = self.service_manager.get_proxy_status()
+            if status and hasattr(self.status_widget, 'proxy_status_label'):
+                running = status.get('running')
+                managed = status.get('managed')
+                base = status.get('base_url') or '—'
+                txt = f"{'On' if running else 'Off'} ({'managed' if managed else 'manual'}): {base}"
+                self.status_widget.proxy_status_label.setText(txt)
+        except Exception:
+            pass
