@@ -288,20 +288,47 @@ class ServiceManager(QObject):
     
     def get_service_logs(self, lines: int = 100) -> List[str]:
         """Get recent service logs."""
-        logs = []
-        
-        if self.tool_gating_process:
-            # Get stdout and stderr from process
-            stdout = self.tool_gating_process.readAllStandardOutput().data().decode()
-            stderr = self.tool_gating_process.readAllStandardError().data().decode()
-            
-            if stdout:
-                logs.extend(stdout.split('\n'))
-            if stderr:
-                logs.extend(stderr.split('\n'))
-        
-        # Return last N lines
+        logs: List[str] = []
+        # Prefer live QProcess buffers if we own the process
+        try:
+            if self.tool_gating_process and self.tool_gating_process.state() == QProcess.ProcessState.Running:
+                stdout = self.tool_gating_process.readAllStandardOutput().data().decode()
+                stderr = self.tool_gating_process.readAllStandardError().data().decode()
+                if stdout:
+                    logs.extend(stdout.split('\n'))
+                if stderr:
+                    logs.extend(stderr.split('\n'))
+        except Exception:
+            pass
+        # Fallback: tail run/backend.log if present (when GUI didn't spawn process)
+        try:
+            project_root = Path(__file__).resolve().parent.parent
+            log_path = project_root / "run" / "backend.log"
+            if log_path.exists():
+                content = log_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                logs = content if not logs else (logs + ["", "--- tail backend.log ---", *content[-lines:]])
+        except Exception:
+            pass
         return logs[-lines:] if len(logs) > lines else logs
+
+    def get_proxy_status(self) -> Optional[Dict[str, Any]]:
+        """Get proxy status from backend API."""
+        if not self.is_service_running():
+            return None
+        try:
+            for port in self._candidate_ports():
+                for host in ("localhost", "127.0.0.1"):
+                    base = f"http://{host}:{port}"
+                    try:
+                        resp = requests.get(f"{base}/api/mcp/proxy_status", timeout=3)
+                        if resp.status_code == 200:
+                            self.last_api_base = base
+                            return resp.json()
+                    except Exception:
+                        continue
+        except Exception:
+            return None
+        return None
     
     def _get_start_command(self) -> Optional[List[str]]:
         """Get command to start the service.

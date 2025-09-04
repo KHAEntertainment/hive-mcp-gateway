@@ -102,6 +102,12 @@ class DiscoverToolsRequest(BaseModel):
     server_id: str
 
 
+class ProxyStatusResponse(BaseModel):
+    running: bool
+    managed: bool
+    base_url: str | None
+
+
 @router.post("/reconnect", operation_id="reconnect_server")
 async def reconnect_server(
     request: ReconnectServerRequest,
@@ -227,6 +233,27 @@ async def discover_tools_now(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to discover tools: {str(e)}")
+
+
+@router.get("/proxy_status", response_model=ProxyStatusResponse, operation_id="proxy_status")
+async def proxy_status() -> ProxyStatusResponse:
+    """Return current MCP Proxy status from orchestrator/settings."""
+    try:
+        from ..main import app
+        app_settings = getattr(app.state, "app_settings", None)
+        orchestrator = getattr(app.state, "proxy_orchestrator", None)
+        base = getattr(app_settings, "proxy_url", None) if app_settings else None
+        managed = bool(getattr(app_settings, "manage_proxy", False)) if app_settings else False
+        running = bool(base)
+        # Additional signal: if orchestrator exists and has a live process
+        try:
+            if orchestrator and getattr(orchestrator, "proc", None) is not None:
+                running = running and (orchestrator.proc.poll() is None)
+        except Exception:
+            pass
+        return ProxyStatusResponse(running=running, managed=managed, base_url=base)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get proxy status: {str(e)}")
 
 
 @router.get("/debug/registry", operation_id="debug_registry")

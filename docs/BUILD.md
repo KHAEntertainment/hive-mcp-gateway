@@ -19,6 +19,30 @@ The easiest way to build the app is using the provided shell script:
 
 # Build app bundle and create DMG installer
 ./build/build_macos.sh --dmg
+
+### Embedding MCP Proxy (zero‑setup stdio support)
+
+The app can automatically orchestrate TBXark/mcp-proxy so users don’t install anything manually. To embed the proxy binary in the macOS bundle:
+
+1) Obtain the `mcp-proxy` binary (arm64/x86_64) by either:
+   - Downloading a release artifact from https://github.com/TBXark/mcp-proxy/releases
+   - Or build from source:
+     - Install Go toolchain
+     - `git clone https://github.com/TBXark/mcp-proxy && cd mcp-proxy && make build`
+
+2) Place the binary at one of the following locations before running the build:
+   - `run/bin/mcp-proxy` (preferred)
+   - Or set an environment variable: `MCP_PROXY_PATH=/absolute/path/to/mcp-proxy`
+
+3) Run the build:
+   - `./build/build_macos.sh` (or `--dmg`)
+
+The build script will copy the binary into `ToolGatingMCP.app/Contents/Resources/bin/` so the orchestrator can launch it at runtime. Codesigning/notarization steps should be applied to the embedded binary as part of your release pipeline (TODO: integrate codesign with your team identity).
+
+Runtime flags in YAML (`toolGating`):
+ - `manageProxy: true`       → start/stop the bundled proxy automatically
+ - `autoProxyStdio: true`    → route stdio servers via proxy transparently
+
 ```
 
 ## Manual Build

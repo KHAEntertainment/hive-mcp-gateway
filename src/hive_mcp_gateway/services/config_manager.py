@@ -234,6 +234,22 @@ class ConfigManager:
         self.save_config(current_config)
         logger.info(f"Set port to: {port}")
         return True
+
+    def set_manage_proxy(self, enabled: bool) -> bool:
+        """Enable/disable managed MCP Proxy orchestration."""
+        current_config = self.load_config()
+        current_config.tool_gating.manage_proxy = enabled
+        self.save_config(current_config)
+        logger.info(f"Set manageProxy to: {enabled}")
+        return True
+
+    def set_auto_proxy_stdio(self, enabled: bool) -> bool:
+        """Enable/disable automatic stdio routing through proxy when available."""
+        current_config = self.load_config()
+        current_config.tool_gating.auto_proxy_stdio = enabled
+        self.save_config(current_config)
+        logger.info(f"Set autoProxyStdio to: {enabled}")
+        return True
     
     def process_mcp_snippet(self, json_text: str, server_name: Optional[str] = None) -> ProcessResult:
         """Process MCP JSON snippet and add/update server configuration."""

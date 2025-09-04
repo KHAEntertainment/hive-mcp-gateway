@@ -65,8 +65,8 @@ class DependencyChecker(QObject):
             },
             "mcp-proxy": {
                 "binary_name": "mcp-proxy",
-                "description": "MCP Proxy for Claude Desktop",
-                "dependency_type": "client"
+                "description": "MCP Proxy supervisor (bundled or PATH)",
+                "dependency_type": "runtime"
             }
         }
         
@@ -155,6 +155,21 @@ class DependencyChecker(QObject):
     def check_binary_available(self, binary_name: str) -> bool:
         """Check if a binary is available in PATH."""
         try:
+            # Special handling for mcp-proxy: check bundled paths as well
+            if binary_name == "mcp-proxy":
+                try:
+                    proj_root = Path(__file__).resolve().parent.parent
+                    candidates = [
+                        proj_root / "dist" / "ToolGatingMCP.app" / "Contents" / "Resources" / "bin" / "mcp-proxy",
+                        proj_root / "Resources" / "bin" / "mcp-proxy",
+                        proj_root / "bin" / "mcp-proxy",
+                        proj_root / "run" / "bin" / "mcp-proxy",
+                    ]
+                    for c in candidates:
+                        if c.exists():
+                            return True
+                except Exception:
+                    pass
             result = subprocess.run(
                 ["which", binary_name],
                 capture_output=True,
@@ -317,6 +332,21 @@ class DependencyChecker(QObject):
             # Regular binary
             binary_name = config.get("binary_name")
             if binary_name:
+                # For mcp-proxy, also return bundled path if found
+                if binary_name == "mcp-proxy":
+                    try:
+                        proj_root = Path(__file__).resolve().parent.parent
+                        candidates = [
+                            proj_root / "dist" / "ToolGatingMCP.app" / "Contents" / "Resources" / "bin" / "mcp-proxy",
+                            proj_root / "Resources" / "bin" / "mcp-proxy",
+                            proj_root / "bin" / "mcp-proxy",
+                            proj_root / "run" / "bin" / "mcp-proxy",
+                        ]
+                        for c in candidates:
+                            if c.exists():
+                                return str(c)
+                    except Exception:
+                        pass
                 return self._find_binary_path(binary_name)
                 
         except Exception as e:

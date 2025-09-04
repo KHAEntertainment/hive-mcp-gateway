@@ -112,6 +112,15 @@ class StatusWidget(QWidget):
         api_row.addWidget(self.refresh_btn)
         status_layout.addRow("API:", api_row)
 
+        # Proxy controls
+        proxy_row = QHBoxLayout()
+        self.manage_proxy_chk = QCheckBox("Managed Proxy")
+        self.auto_proxy_stdio_chk = QCheckBox("Auto-Proxy stdio")
+        proxy_row.addWidget(self.manage_proxy_chk)
+        proxy_row.addWidget(self.auto_proxy_stdio_chk)
+        proxy_row.addStretch()
+        status_layout.addRow("Proxy:", proxy_row)
+
         # Last refresh status
         self.last_refresh_label = QLabel("Not refreshed")
         self.last_refresh_label.setObjectName("lastRefreshLabel")
@@ -592,6 +601,23 @@ class MainWindow(QMainWindow):
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.update_service_info_only)
         self.status_timer.start(10000)  # Update every 10 seconds
+
+        # Load proxy toggles from config
+        try:
+            if self.config_manager:
+                cfg = self.config_manager.load_config()
+                if hasattr(self.status_widget, 'manage_proxy_chk'):
+                    self.status_widget.manage_proxy_chk.setChecked(getattr(cfg.tool_gating, 'manage_proxy', False))
+                if hasattr(self.status_widget, 'auto_proxy_stdio_chk'):
+                    self.status_widget.auto_proxy_stdio_chk.setChecked(getattr(cfg.tool_gating, 'auto_proxy_stdio', True))
+        except Exception:
+            pass
+        # Wire toggle handlers
+        try:
+            self.status_widget.manage_proxy_chk.toggled.connect(self.on_manage_proxy_toggled)
+            self.status_widget.auto_proxy_stdio_chk.toggled.connect(self.on_auto_proxy_stdio_toggled)
+        except Exception:
+            pass
     
     def update_service_info_only(self):
         """Update only the service information, not the servers."""
@@ -1436,3 +1462,21 @@ class MainWindow(QMainWindow):
             a0.ignore()
         # Call the parent implementation
         super().closeEvent(a0)
+
+    def on_manage_proxy_toggled(self, checked: bool):
+        try:
+            if self.config_manager:
+                self.config_manager.set_manage_proxy(bool(checked))
+                self.show_status_message("Managed Proxy setting saved; restarting service...")
+                QTimer.singleShot(200, self.restart_service)
+        except Exception as e:
+            self.show_status_message(f"Failed to save Managed Proxy: {e}")
+
+    def on_auto_proxy_stdio_toggled(self, checked: bool):
+        try:
+            if self.config_manager:
+                self.config_manager.set_auto_proxy_stdio(bool(checked))
+                self.show_status_message("Auto-Proxy stdio setting saved; restarting service...")
+                QTimer.singleShot(200, self.restart_service)
+        except Exception as e:
+            self.show_status_message(f"Failed to save Auto-Proxy stdio: {e}")
