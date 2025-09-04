@@ -75,7 +75,11 @@ async def lifespan(app: FastAPI):
         client_manager = MCPClientManager()
         # Use the main config file instead of separate registry
         logger.info("Initializing MCPServerRegistry...")
-        registry = MCPServerRegistry("config/tool_gating_config.yaml")
+        # Pass absolute path to the registry to avoid src/ path confusion
+        from pathlib import Path as _Path
+        proj_root_abs = _Path(__file__).resolve().parents[2]
+        registry_cfg_path = proj_root_abs / "config" / "tool_gating_config.yaml"
+        registry = MCPServerRegistry(str(registry_cfg_path))
         
         # Register all backend servers from main config into the registry
         logger.info("Registering backend servers from main configuration...")
@@ -103,10 +107,13 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing FileWatcherService...")
         file_watcher = FileWatcherService(config_manager, registry)  # pass registry instead of client_manager
 
-        # Optionally manage an embedded MCP Proxy for stdio servers
+        # Always attempt to manage an embedded MCP Proxy for stdio servers
         proxy_url = getattr(app_settings, "proxy_url", None)
-        if getattr(app_settings, "manage_proxy", False):
-            try:
+        try:
+            # Determine if any stdio servers exist; if so, we need the proxy
+            have_stdio = any(getattr(s, 'type', 'stdio') == 'stdio' for s in backend_servers.values())
+            should_manage = getattr(app_settings, "manage_proxy", True) or have_stdio
+            if should_manage:
                 from pathlib import Path
                 run_dir = Path(__file__).resolve().parents[2] / "run"
                 orchestrator = MCPProxyOrchestrator(config_path, run_dir)
@@ -119,8 +126,8 @@ async def lifespan(app: FastAPI):
                 else:
                     logger.warning("MCP Proxy could not be started automatically (binary/docker not found)")
                 app.state.proxy_orchestrator = orchestrator
-            except Exception as e:
-                logger.warning(f"Failed to start managed MCP Proxy: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to start managed MCP Proxy: {e}")
 
         # Store services in app state before spawning background work
         logger.info("Storing services in app state...")
@@ -133,6 +140,21 @@ async def lifespan(app: FastAPI):
         app.state.registry = registry
         app.state.auto_registration = auto_registration
         app.state.error_handler = error_handler
+
+        # When config changes, rebuild and hot-reload proxy configuration automatically
+        try:
+            async def _on_config_change():
+                try:
+                    cfg = config_manager.load_config()
+                    orchestrator = getattr(app.state, "proxy_orchestrator", None)
+                    if orchestrator:
+                        orchestrator.update_config(cfg)
+                        logger.info("MCP Proxy configuration hot-reloaded")
+                except Exception as e:
+                    logger.warning(f"Failed to hot-reload MCP Proxy config: {e}")
+            file_watcher.add_change_callback(_on_config_change)
+        except Exception:
+            pass
 
         # Spawn background startup pipeline to avoid blocking bind/listen
         async def _background_startup():

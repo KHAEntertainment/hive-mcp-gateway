@@ -73,6 +73,25 @@ class ConfigManager:
             
             # Validate and create config object
             config = ToolGatingConfig(**config_data)
+
+            # Autonomy migration: ensure managed proxy is enabled and stdio uses proxy
+            try:
+                changed = False
+                # Force manageProxy true by default
+                if getattr(config.tool_gating, 'manage_proxy', False) is False:
+                    config.tool_gating.manage_proxy = True
+                    changed = True
+                # Flip stdio servers to via: proxy unless explicitly set
+                for name, srv in list(config.backend_mcp_servers.items()):
+                    if getattr(srv, 'type', 'stdio') == 'stdio' and getattr(srv, 'via', 'proxy') != 'proxy':
+                        srv.via = 'proxy'
+                        config.backend_mcp_servers[name] = srv
+                        changed = True
+                if changed:
+                    # Persist sanitized config
+                    self.save_config(config, format='auto')
+            except Exception as _e:
+                logger.warning(f"Autonomy config migration skipped: {_e}")
             
             # DEBUG: Log the parsed config object
             logger.debug(f"Parsed backend servers count: {len(config.backend_mcp_servers)}")

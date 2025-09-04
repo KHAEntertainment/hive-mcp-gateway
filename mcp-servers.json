@@ -6,6 +6,6 @@
       "@upstash/context7-mcp@latest"
     ],
     "env": {},
-    "description": "Documentation search and library information"
+      "description": "Documentation search and library information"
   }
 }

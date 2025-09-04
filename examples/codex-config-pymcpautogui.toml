@@ -1,0 +1,11 @@
+# Codex global MCP config snippet (append to ~/.codex/config.toml)
+
+# IMPORTANT: top-level key is `mcp_servers` (snake_case)
+[mcp_servers.PyMCPAutoGUI]
+command = "python"
+args = ["-m", "pymcpautogui.server"]
+
+# Optional environment variables (uncomment and adjust as needed)
+# env = { }
+
+# After saving, restart Codex so it detects the new server.

@@ -25,8 +25,8 @@ class MCPServerRegistry:
     """Manages MCP server configurations with support for enhanced features"""
 
     def __init__(self, config_path: str = "config/tool_gating_config.yaml"):
-        # Determine the absolute path to the config file
-        self.config_path = Path(__file__).parent.parent.parent / config_path
+        # Use provided path as-is (absolute or relative to CWD)
+        self.config_path = Path(config_path)
         logger.info(f"Attempting to load MCP server configuration from: {self.config_path}")
         self._servers: Dict[str, MCPServerConfig] = {}
         self._server_status: Dict[str, ServerStatus] = {}

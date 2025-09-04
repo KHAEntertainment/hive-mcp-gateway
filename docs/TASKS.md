@@ -41,6 +41,8 @@ Follow-up (GUI Notice)
   - After service start/discovery, GUI shows non-zero tool counts matching API values.
   - Restarting/reconnecting a server updates counts within the GUI without full app restart.
 
+Status update (Sept 4): Backend fixes applied for reconnect 500s and registry path; proxy readiness check added; discovery still intermittently returns 500 for stdio via SSE (when proxy absent). Fallback to direct stdio added. Continue investigation with enhanced logs and a Discover All action (see Task 15).
+
 ## 12) Hybrid stdio via MCP Proxy with Gateway Tool Gating
 - Summary: Preserve minimal tool exposure (tool gating) while gaining robust stdio lifecycle by optionally delegating stdio process management to MCP Proxy, keeping the gateway as the single client-facing MCP server that filters/publishes a curated subset of tools.
 - Approach:
@@ -72,6 +74,13 @@ Follow-up (GUI Notice)
 - Notes:
   - Reference donor project intent (tool-gating) while integrating optional MCP Proxy: https://github.com/ajbmachon/tool-gating-mcp
   - Optional migration path; proxy can be enabled per server for A/B testing.
+
+Status update (Sept 4):
+- Orchestrator in place; now always attempts to start on startup when stdio servers exist.
+- Added proxy readiness check (await 9090 bind) to avoid false “running”.
+- Added hot‑reload of proxy config via FileWatcher callbacks.
+- Client manager falls back to direct stdio if proxy connect fails.
+- Next: surface proxy install guidance and richer diagnostics in GUI (Task 16).
 
 ## Tracking & Workflow
 - Primary: GitHub Issues (preferred for assignment, labels, and discussion).
@@ -147,3 +156,23 @@ Follow-up (GUI Notice)
   - Real screenshots, optional demo GIF, client setup snippets; cross‑link `TOOL_ENUMERATION.md` and LLM sections.
 - Acceptance Criteria:
   - README GUI section complete and accurate; docs reflect flags and current defaults.
+
+## 13) Fix registry path and reconnect 500s (COMPLETED)
+- Summary: Ensure API uses the same config path as GUI and fix incorrect await in reconnect endpoint.
+- Result: Registry now reads config/config… (absolute), reconnect/discover no longer 500 due to sync call misuse.
+
+## 14) GUI polish: declutter Status & improve Proxy text (COMPLETED)
+- Summary: Move Dependencies to About tab, simplify Service Status layout, add readable proxy labels + tooltips.
+- Result: Status no longer cramped; proxy line shows Managed/Route/Status+Base.
+
+## 15) Add “Discover All” and per‑server last error in cards (NEW)
+- Summary: One‑click discovery across servers and surface last discovery error per server.
+- Acceptance Criteria:
+  - Button triggers discovery for all enabled servers with progress.
+  - Each card displays last error (if any) with timestamp; clears on success.
+
+## 16) Proxy diagnostics and install guidance (NEW)
+- Summary: When proxy not installed, show clear guidance and link to docs; reflect fallback to direct stdio.
+- Acceptance Criteria:
+  - Status tab shows reason when proxy is Stopped (binary/docker not found) and suggested install commands.
+  - Logs tab includes a filtered proxy section (if available).

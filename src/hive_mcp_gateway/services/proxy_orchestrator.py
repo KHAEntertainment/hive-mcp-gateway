@@ -65,6 +65,36 @@ class MCPProxyOrchestrator:
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return path
 
+    def is_running(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def reload(self, config_file: Path) -> bool:
+        """Reload proxy config by restarting the process with the new config.
+
+        mcp-proxy does not advertise hot-reload; we perform a fast restart.
+        """
+        # Stop existing process if running
+        if self.is_running():
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+        self.proc = None
+        # Start again with new config
+        return self.try_start(config_file)
+
+    def update_config(self, cfg: ToolGatingConfig) -> bool:
+        """Rebuild and apply a new proxy configuration.
+
+        Returns True if proxy is running after update, False otherwise.
+        """
+        data = self.build_proxy_config(cfg)
+        conf_file = self.write_config_file(data)
+        if self.is_running():
+            return self.reload(conf_file)
+        else:
+            return self.try_start(conf_file)
+
     def try_start(self, config_file: Path) -> bool:
         # Prefer bundled binary if available
         possible: list[Path] = []
@@ -83,12 +113,12 @@ class MCPProxyOrchestrator:
         for p in possible:
             if p.exists():
                 self.proc = subprocess.Popen([str(p), "--config", str(config_file)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                return True
+                return self._await_ready()
         # Then try PATH
         binary = shutil.which("mcp-proxy") or shutil.which("mcp_proxy")
         if binary:
             self.proc = subprocess.Popen([binary, "--config", str(config_file)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            return True
+            return self._await_ready()
         # Try docker if present
         docker = shutil.which("docker")
         if docker:
@@ -101,7 +131,7 @@ class MCPProxyOrchestrator:
                 f"{config_file}:/config/config.json",
                 "ghcr.io/tbxark/mcp-proxy:latest",
             ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            return True
+            return self._await_ready()
         return False
 
     def stop(self) -> None:
@@ -111,3 +141,31 @@ class MCPProxyOrchestrator:
             except Exception:
                 pass
         self.proc = None
+
+    # Internal helpers
+    def _port_open(self, host: str = "127.0.0.1", port: int = 9090, timeout: float = 0.5) -> bool:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            return s.connect_ex((host, port)) == 0
+
+    def _await_ready(self, retries: int = 10, delay: float = 0.2) -> bool:
+        """Wait briefly for proxy to bind before reporting success."""
+        try:
+            import time
+            for _ in range(max(1, retries)):
+                if self.proc is None or self.proc.poll() is not None:
+                    return False
+                if self._port_open():
+                    return True
+                time.sleep(delay)
+        except Exception:
+            pass
+        # Not ready; terminate
+        try:
+            if self.proc:
+                self.proc.terminate()
+        except Exception:
+            pass
+        self.proc = None
+        return False

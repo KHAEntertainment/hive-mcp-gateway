@@ -127,10 +127,10 @@ class ToolGatingSettings(BaseModel):
     config_watch_enabled: bool = Field(default=True, alias="configWatchEnabled")
     health_check_interval: int = Field(default=30, alias="healthCheckInterval")  # seconds
     connection_timeout: int = Field(default=10, alias="connectionTimeout")  # seconds
-    # Gating defaults and optional proxy
+    # Gating defaults and proxy management (proxy is always-on by default)
     default_policy: Literal["deny", "allow"] = Field(default="deny", alias="defaultPolicy")
     proxy_url: Optional[str] = Field(default=None, alias="proxyUrl")
-    manage_proxy: bool = Field(default=False, alias="manageProxy")
+    manage_proxy: bool = Field(default=True, alias="manageProxy")
     auto_proxy_stdio: bool = Field(default=True, alias="autoProxyStdio")
     
     class Config:

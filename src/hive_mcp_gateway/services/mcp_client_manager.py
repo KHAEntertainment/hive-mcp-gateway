@@ -40,6 +40,10 @@ class MCPClientManager:
                 # Auto-route to proxy if configured to manage proxy and a base URL is set
                 if via == "proxy":
                     result = await self._connect_proxy_server(name, config)
+                    # Fallback to direct stdio if proxy unavailable
+                    if result.get("status") != "success":
+                        logger.warning(f"Proxy connect failed for {name}; falling back to direct stdio")
+                        result = await self._connect_stdio_server(name, config)
                 else:
                     try:
                         from ..main import app  # late import

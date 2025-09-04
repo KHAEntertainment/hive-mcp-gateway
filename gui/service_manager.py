@@ -569,6 +569,11 @@ class ServiceManager(QObject):
                         logger.info(f"Successfully reconnected server {server_id}")
                         self.last_api_base = base
                         return True
+                    else:
+                        try:
+                            logger.error(f"Reconnect {server_id} via {base} failed: {resp.status_code} {resp.text}")
+                        except Exception:
+                            pass
                 except Exception as e:
                     logger.debug(f"Reconnect via {base} failed: {e}")
                     continue
@@ -631,6 +636,11 @@ class ServiceManager(QObject):
                         logger.info(f"Discover tools succeeded for {server_id}")
                         self.last_api_base = base
                         return True
+                    else:
+                        try:
+                            logger.error(f"Discover tools {server_id} via {base} failed: {resp.status_code} {resp.text}")
+                        except Exception:
+                            pass
                 except Exception:
                     continue
             logger.error("Failed to discover tools on all candidate bases")

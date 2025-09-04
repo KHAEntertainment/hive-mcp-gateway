@@ -41,6 +41,7 @@ from pydantic import BaseModel
 from typing import List as _List
 
 from ..models.mcp_config import MCPServerConfig, MCPServerRegistration
+from ..models.config import BackendServerConfig
 from ..services.mcp_registry import MCPDiscoveryService, MCPServerRegistry
 from ..models.config import ServerStatus
 from .tools import get_tool_repository
@@ -145,7 +146,7 @@ async def reconnect_server(
             client_manager = app.state.client_manager
             
             # Get server config
-            server_config = await registry.get_server(request.server_id)
+            server_config = registry.get_server(request.server_id)
             if not server_config:
                 raise HTTPException(status_code=500, detail=f"Server configuration not found for '{request.server_id}'")
             
@@ -354,7 +355,32 @@ async def add_server(
             description=request.description or f"MCP server: {request.name}",
             estimated_tools=10
         )
-        
+        # Persist to main configuration so the proxy orchestrator can hot-reload
+        try:
+            from ..main import app as _app
+            cfg_mgr = getattr(_app.state, "config_manager", None)
+            if cfg_mgr:
+                bcfg = BackendServerConfig(
+                    type="stdio",
+                    via="proxy",
+                    command=request.config.command,
+                    args=request.config.args,
+                    env=request.config.env,
+                    enabled=True,
+                    description=registration.description,
+                )
+                cfg_mgr.add_backend_server(request.name, bcfg)
+                # Hot-apply to proxy orchestrator immediately
+                try:
+                    orch = getattr(_app.state, "proxy_orchestrator", None)
+                    if orch:
+                        orch.update_config(cfg_mgr.load_config())
+                except Exception:
+                    pass
+        except Exception:
+            # Non-fatal; continue
+            pass
+
         server_result = await registry.register_server(registration)
         
         if server_result["status"] != "success":

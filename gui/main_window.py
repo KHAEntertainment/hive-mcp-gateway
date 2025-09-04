@@ -68,10 +68,7 @@ class StatusWidget(QWidget):
         
         layout.addWidget(notifications_group)
         
-        # Create a horizontal layout for service status and dependencies side by side
-        top_row_layout = QHBoxLayout()
-        
-        # Service status group
+        # Service status group (single-column, less cramped)
         status_group = QGroupBox("Service Status")
         status_group.setObjectName("serviceStatusGroup")
         status_layout = QFormLayout(status_group)
@@ -112,16 +109,22 @@ class StatusWidget(QWidget):
         api_row.addWidget(self.refresh_btn)
         status_layout.addRow("API:", api_row)
 
-        # Proxy controls
+        # Proxy status (read-only, always-on)
         proxy_row = QHBoxLayout()
-        self.manage_proxy_chk = QCheckBox("Managed Proxy")
-        self.manage_proxy_chk.setMinimumWidth(140)
-        self.auto_proxy_stdio_chk = QCheckBox("Auto-Proxy stdio")
-        self.auto_proxy_stdio_chk.setMinimumWidth(160)
+        self.proxy_mode_label = QLabel("Managed: On")
+        self.proxy_mode_label.setObjectName("proxyModeLabel")
+        self.proxy_route_label = QLabel("Routing: stdio via proxy")
+        self.proxy_route_label.setObjectName("proxyRouteLabel")
         self.proxy_status_label = QLabel("Unknown")
         self.proxy_status_label.setObjectName("proxyStatusLabel")
-        proxy_row.addWidget(self.manage_proxy_chk)
-        proxy_row.addWidget(self.auto_proxy_stdio_chk)
+        # Helpful tooltips
+        self.proxy_mode_label.setToolTip("Gateway manages the MCP Proxy automatically")
+        self.proxy_route_label.setToolTip("Stdio servers are routed through the proxy for stability")
+        self.proxy_status_label.setToolTip("Current proxy state and base URL")
+        proxy_row.addWidget(self.proxy_mode_label)
+        proxy_row.addSpacing(10)
+        proxy_row.addWidget(self.proxy_route_label)
+        proxy_row.addSpacing(10)
         proxy_row.addWidget(self.proxy_status_label)
         proxy_row.addStretch()
         status_layout.addRow("Proxy:", proxy_row)
@@ -141,25 +144,8 @@ class StatusWidget(QWidget):
         self.service_uptime_label.setObjectName("statusValue")
         status_layout.addRow("Uptime:", self.service_uptime_label)
         
-        # Add service status to the top row
-        top_row_layout.addWidget(status_group)
-        
-        # Dependencies status
-        deps_group = QGroupBox("Dependencies")
-        deps_group.setObjectName("dependenciesGroup")
-        deps_layout = QVBoxLayout(deps_group)
-        deps_layout.setContentsMargins(10, 10, 10, 10)
-        deps_layout.setSpacing(5)
-        
-        self.deps_list = QListWidget()
-        self.deps_list.setMaximumHeight(120)  # Limit the height
-        deps_layout.addWidget(self.deps_list)
-        
-        # Add dependencies to the top row
-        top_row_layout.addWidget(deps_group)
-        
-        # Add the top row layout to the main layout
-        layout.addLayout(top_row_layout)
+        # Add service status to the main layout
+        layout.addWidget(status_group)
         
         # MCP Servers
         servers_group = QGroupBox("Registered MCP Servers")
@@ -373,13 +359,25 @@ class AboutWidget(QWidget):
         about_text.setOpenExternalLinks(True)
         about_text.setAlignment(Qt.AlignmentFlag.AlignTop)
         
-        # Wrap in scroll area
-        scroll_area = QScrollArea()
-        scroll_area.setObjectName("aboutScrollArea")
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(about_text)
+        # Wrap about text in a scroll area
+        about_scroll = QScrollArea()
+        about_scroll.setObjectName("aboutScrollArea")
+        about_scroll.setWidgetResizable(True)
+        about_scroll.setWidget(about_text)
+        layout.addWidget(about_scroll)
+
+        # Dependencies moved here to declutter Status tab
+        deps_group = QGroupBox("Dependencies")
+        deps_group.setObjectName("dependenciesGroup")
+        deps_layout = QVBoxLayout(deps_group)
+        deps_layout.setContentsMargins(10, 10, 10, 10)
+        deps_layout.setSpacing(5)
         
-        layout.addWidget(scroll_area)
+        self.deps_list = QListWidget()
+        self.deps_list.setObjectName("depsList")
+        self.deps_list.setMaximumHeight(180)
+        deps_layout.addWidget(self.deps_list)
+        layout.addWidget(deps_group)
 
 
 class MainWindow(QMainWindow):
@@ -607,22 +605,18 @@ class MainWindow(QMainWindow):
         self.status_timer.timeout.connect(self.update_service_info_only)
         self.status_timer.start(10000)  # Update every 10 seconds
 
-        # Load proxy toggles from config
+        # Initialize proxy status text
         try:
             if self.config_manager:
                 cfg = self.config_manager.load_config()
-                if hasattr(self.status_widget, 'manage_proxy_chk'):
-                    self.status_widget.manage_proxy_chk.setChecked(getattr(cfg.tool_gating, 'manage_proxy', False))
-                if hasattr(self.status_widget, 'auto_proxy_stdio_chk'):
-                    self.status_widget.auto_proxy_stdio_chk.setChecked(getattr(cfg.tool_gating, 'auto_proxy_stdio', True))
-                # Initial proxy status fetch
+                managed = getattr(cfg.tool_gating, 'manage_proxy', True)
+                auto_stdio = getattr(cfg.tool_gating, 'auto_proxy_stdio', True)
+                if hasattr(self.status_widget, 'proxy_mode_label'):
+                    self.status_widget.proxy_mode_label.setText(f"Managed: {'On' if managed else 'Off'}")
+                if hasattr(self.status_widget, 'proxy_route_label'):
+                    route = 'stdio via proxy' if auto_stdio else 'direct stdio'
+                    self.status_widget.proxy_route_label.setText(f"Routing: {route}")
                 QTimer.singleShot(300, self.update_proxy_status)
-        except Exception:
-            pass
-        # Wire toggle handlers
-        try:
-            self.status_widget.manage_proxy_chk.toggled.connect(self.on_manage_proxy_toggled)
-            self.status_widget.auto_proxy_stdio_chk.toggled.connect(self.on_auto_proxy_stdio_toggled)
         except Exception:
             pass
 
@@ -755,8 +749,10 @@ class MainWindow(QMainWindow):
         self.update_servers_display()
     
     def update_dependencies_display(self):
-        """Update the dependencies status display."""
-        self.status_widget.deps_list.clear()
+        """Update the dependencies status display (now on About tab)."""
+        if not hasattr(self.about_widget, 'deps_list'):
+            return
+        self.about_widget.deps_list.clear()
         
         if self.dependency_checker:
             # Use the new method to get only actual dependencies (excluding clients)
@@ -789,7 +785,7 @@ class MainWindow(QMainWindow):
                 else:
                     item.setForeground(QColor(255, 152, 0))  # Orange
                 
-                self.status_widget.deps_list.addItem(item)
+                self.about_widget.deps_list.addItem(item)
         else:
             # Fallback if dependency checker not available
             fallback_deps = [
@@ -799,7 +795,7 @@ class MainWindow(QMainWindow):
             
             for name, status in fallback_deps:
                 item = QListWidgetItem(f"{name}: {status}")
-                self.status_widget.deps_list.addItem(item)
+                self.about_widget.deps_list.addItem(item)
     
     def update_servers_display(self):
         """Update the MCP servers list with server cards."""
@@ -1502,7 +1498,10 @@ class MainWindow(QMainWindow):
                 running = status.get('running')
                 managed = status.get('managed')
                 base = status.get('base_url') or '—'
-                txt = f"{'On' if running else 'Off'} ({'managed' if managed else 'manual'}): {base}"
+                if hasattr(self.status_widget, 'proxy_mode_label'):
+                    self.status_widget.proxy_mode_label.setText(f"Managed: {'On' if managed else 'Off'}")
+                # Update status line with readable text
+                txt = f"Status: {'Running' if running else 'Stopped'} • Base: {base}"
                 self.status_widget.proxy_status_label.setText(txt)
         except Exception:
             pass
