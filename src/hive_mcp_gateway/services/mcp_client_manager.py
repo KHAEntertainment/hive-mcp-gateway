@@ -165,6 +165,8 @@ class MCPClientManager:
             base_env.setdefault("FASTMCP_NO_BANNER", "1")
             base_env.setdefault("FASTMCP_DISABLE_BANNER", "1")
             base_env.setdefault("FASTMCP_QUIET", "1")
+            # Suppress Python warnings that might interfere with STDIO
+            base_env.setdefault("PYTHONWARNINGS", "ignore")
 
             server_params = StdioServerParameters(
                 command=config["command"],
@@ -183,8 +185,21 @@ class MCPClientManager:
             session = ClientSession(read_stream, write_stream)
             self.sessions[name] = session
             
-            # Initialize the session with extended timeout
-            await asyncio.wait_for(session.initialize(), timeout=180)
+            # Wait a bit for the server to fully start up (FastMCP servers print banners)
+            await asyncio.sleep(0.5)
+            
+            # Initialize the session with extended timeout and retries
+            max_init_retries = 3
+            for retry in range(max_init_retries):
+                try:
+                    await asyncio.wait_for(session.initialize(), timeout=30)
+                    break  # Success
+                except asyncio.TimeoutError:
+                    if retry < max_init_retries - 1:
+                        logger.warning(f"Session initialization timeout for {name}, retry {retry+1}/{max_init_retries}")
+                        await asyncio.sleep(1.0)  # Wait before retry
+                    else:
+                        raise
 
             # Mark as connected immediately to avoid blocking other registrations
             try:
@@ -259,7 +274,12 @@ class MCPClientManager:
             # Clean up on error
             if name in self._stdio_contexts:
                 try:
-                    await self._stdio_contexts[name].__aexit__(None, None, None)
+                    context = self._stdio_contexts[name]
+                    try:
+                        await asyncio.wait_for(context.__aexit__(None, None, None), timeout=5)
+                    except (asyncio.TimeoutError, RuntimeError):
+                        # Either timeout or cancel scope issue
+                        pass
                 except Exception:
                     pass
                 del self._stdio_contexts[name]
@@ -411,7 +431,12 @@ class MCPClientManager:
             # Cleanup on error
             if name in self._stdio_contexts:
                 try:
-                    await self._stdio_contexts[name].__aexit__(None, None, None)
+                    context = self._stdio_contexts[name]
+                    try:
+                        await asyncio.wait_for(context.__aexit__(None, None, None), timeout=5)
+                    except (asyncio.TimeoutError, RuntimeError):
+                        # Either timeout or cancel scope issue
+                        pass
                 except Exception:
                     pass
                 del self._stdio_contexts[name]
@@ -483,7 +508,19 @@ class MCPClientManager:
         # Close stdio connection if it exists
         if name in self._stdio_contexts:
             try:
-                await self._stdio_contexts[name].__aexit__(None, None, None)
+                context = self._stdio_contexts[name]
+                # Only try to exit context if we're in the same task that created it
+                # This avoids the "Attempted to exit cancel scope in a different task" error
+                try:
+                    await asyncio.wait_for(context.__aexit__(None, None, None), timeout=5)
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout closing stdio connection for {name}")
+                except RuntimeError as e:
+                    # This happens when the context was created in a different task
+                    if "cancel scope" in str(e).lower():
+                        logger.debug(f"Context created in different task for {name}: {e}")
+                    else:
+                        raise
             except Exception as e:
                 logger.error(f"Error closing stdio connection for {name}: {e}")
             finally:

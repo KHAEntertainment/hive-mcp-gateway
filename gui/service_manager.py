@@ -65,10 +65,8 @@ class ServiceManager(QObject):
         self.tool_gating_process: Optional[QProcess] = None
         self.tool_gating_pid: Optional[int] = None
         
-        # Status monitoring
-        self.status_timer = QTimer()
-        self.status_timer.timeout.connect(self.check_service_status)
-        self.status_timer.start(5000)  # Check every 5 seconds
+        # Status monitoring - timer will be initialized later to avoid threading issues
+        self.status_timer: Optional[QTimer] = None
 
         logger.info("Service manager initialized")
         # Diagnostics for banner updates
@@ -78,6 +76,11 @@ class ServiceManager(QObject):
     def start_service(self) -> bool:
         """Start the Hive MCP Gateway backend service."""
         try:
+            # Initialize timer on first service start to avoid threading issues
+            if self.status_timer is None:
+                self.status_timer = QTimer()
+                self.status_timer.timeout.connect(self.check_service_status)
+                self.status_timer.start(5000)  # Check every 5 seconds
             if self.is_service_running():
                 logger.warning("Hive MCP Gateway service is already running")
                 return True
@@ -490,6 +493,8 @@ class ServiceManager(QObject):
     
     def check_service_status(self):
         """Periodic status check (called by timer)."""
+        if not self.status_timer:
+            return  # Timer not initialized yet
         try:
             current_running = self.is_service_running()
             
