@@ -242,9 +242,86 @@ def main():
         config = config_manager.load_config()
         
         host = os.getenv('HOST', config.tool_gating.host)
-        port = int(os.getenv('PORT', config.tool_gating.port))
+        configured_port = int(os.getenv('PORT', config.tool_gating.port))
+
+        # Determine an available port with fallback: 8001 default, else 8002-8025
+        def _is_port_busy(h: str, p: int) -> bool:
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.5)
+                return s.connect_ex(("127.0.0.1" if h in ("0.0.0.0", "::") else h, p)) == 0
+
+        port = configured_port
+        # Build a set of ports reserved by configured upstream servers (e.g., exa at 8002)
+        reserved_ports: set[int] = set()
+        try:
+            import re
+            from urllib.parse import urlparse
+            for name, srv in config.backend_mcp_servers.items():
+                url = getattr(srv, 'url', None)
+                if url:
+                    try:
+                        parsed = urlparse(url)
+                        if parsed.port:
+                            reserved_ports.add(int(parsed.port))
+                    except Exception:
+                        # Best-effort: fallback regex for :<port>
+                        m = re.search(r":(\d+)", str(url))
+                        if m:
+                            reserved_ports.add(int(m.group(1)))
+        except Exception:
+            pass
+
+        fallback_ports: list[int] = []
+        # If user configured something other than 8001, still try that first, then our policy
+        if port != 8001:
+            fallback_ports.append(8001)
+        # Add range 8002-8025 as requested, excluding reserved upstream ports
+        for p in range(8002, 8026):
+            if p not in reserved_ports:
+                fallback_ports.append(p)
+
+        # If configured port is reserved by upstream URLs, skip it immediately
+        if port in reserved_ports:
+            logger.warning(f"Configured port {port} is reserved by upstream servers; selecting fallback port")
+            selected = None
+            # Try 8001 first if not reserved
+            if 8001 not in reserved_ports and not _is_port_busy(host, 8001):
+                selected = 8001
+            else:
+                for fp in fallback_ports:
+                    if not _is_port_busy(host, fp):
+                        selected = fp
+                        break
+            if selected is None:
+                raise RuntimeError("No available port found (avoiding reserved upstream ports)")
+            logger.info(f"Selected available port: {selected}")
+            port = selected
+        elif _is_port_busy(host, port):
+            logger.warning(
+                f"Configured port {port} is busy; attempting fallback within 8002-8025"
+            )
+            selected = None
+            for fp in fallback_ports:
+                if not _is_port_busy(host, fp):
+                    selected = fp
+                    break
+            if selected is None:
+                raise RuntimeError("No available port found in range 8001,8002-8025")
+            logger.info(f"Selected available port: {selected}")
+            port = selected
         log_level = os.getenv('LOG_LEVEL', config.tool_gating.log_level).lower()
         
+        # Persist the selected port for GUI consumption (best-effort)
+        try:
+            from pathlib import Path
+            proj_root = Path(__file__).resolve().parents[2]
+            run_dir = proj_root / "run"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "hmg_port").write_text(str(port), encoding="utf-8")
+        except Exception:
+            pass
+
         logger.info(f"Starting Hive MCP Gateway on {host}:{port}")
         logger.info(f"Log level: {log_level}")
         logger.info(f"Configuration file: {config_path}")

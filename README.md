@@ -1,19 +1,47 @@
 # Hive MCP Gateway
 
-Hive MCP Gateway is an intelligent system for managing Model Context Protocol (MCP) tools to prevent context bloat. It discovers and provisions only the most relevant tools for each task, supporting both stdio and HTTP-based MCP servers.
+Hive MCP Gateway is an intelligent system for managing Model Context Protocol (MCP) tools to prevent context bloat. It discovers and uses only the most relevant tools for a given task.
+
+This project is designed for end users first: start the app, connect your MCP clients (Claude Desktop/Code, Gemini CLI), and work. Advanced configuration remains available for power users and headless/Docker setups.
 
 ## Docs
 - Full docs live under `docs/` to keep the root clean:
   - `docs/ARCHITECTURE.md` – System design and components
   - `docs/USAGE.md` – Usage and configuration guide
+  - `docs/TOOL_ENUMERATION.md` – Deterministic vs LLM-assisted enumeration
   - `docs/BUILD.md` – macOS build instructions
   - `docs/DEPLOYMENT.md` – Deployment (including Docker headless)
   - `docs/ROADMAP.md` – Roadmap and plans
   - `docs/TASKS.md` – Near-term tasks and TODOs
   - `docs/CLAUDE_INTEGRATION.md` – Claude-specific integration notes
   - `docs/tool-gating-mcp-troubleshooting-notes.md` – Troubleshooting notes
-  
+
 Docker assets and guidance are under `docker/` (headless use; GUI is native-only).
+
+## Getting Started (GUI First)
+
+1) Install dependencies
+- `uv sync`
+
+2) Launch the app
+- macOS (built app): open the Hive MCP Gateway app (or run `Launch_Hive_MCP_Gateway.command`)
+- Dev mode: `uv run python run_gui.py`
+
+3) Point your MCP client to the gateway
+- Claude Desktop/Code: Configure a single MCP server pointed at `http://localhost:8001/mcp`
+- Gemini CLI: Use the Client Configuration helper in the app
+
+4) Start using tools
+- Use “Add MCP Server” to register backends (Puppeteer, Context7, GitHub MCP, etc.)
+- Discover tools with natural language; execute via the gateway proxy
+
+Screenshots (placeholders; replace when ready):
+- Main window: `docs/images/gui_home_placeholder.png`
+- MCP clients tab: `docs/images/gui_clients_placeholder.png`
+- Add server flow: `docs/images/gui_add_server_placeholder.png`
+- Logs view: `docs/images/gui_logs_placeholder.png`
+
+Tip: The LLM configuration UI is optional and hidden by default. Enable it with `HMG_ENABLE_LLM_UI=1` if you want to configure providers for future features; it’s not needed for core functionality.
 
 ## Platform Support
 
@@ -36,10 +64,11 @@ The application is built with cross-platform compatibility in mind using PyQt6 a
 - **Automatic Registration**: Multi-stage registration pipeline with fallback mechanisms
 - **Comprehensive Error Handling**: Advanced error recovery and retry logic
 - **Backward Compatibility**: Seamless migration from legacy JSON configurations
+- **Optional LLM Integration (Disabled by Default)**: Provider configuration UI exists for future sampling/re-ranking, but the internal LLM is not used for tool selection in the current build. Enable the UI with `HMG_ENABLE_LLM_UI=1`.
 
-## Configuration
+## Configuration (Advanced / Optional)
 
-Hive MCP Gateway supports both YAML and JSON configuration formats. The new YAML format provides enhanced features including authentication, health checks, and metadata.
+Most users can ignore this section. The app works out of the box via the GUI. For headless deployments or power users, Hive MCP Gateway supports both YAML and JSON configuration formats. The YAML format provides enhanced features including authentication, health checks, and metadata.
 
 ### YAML Configuration Example
 
@@ -224,22 +253,11 @@ Linux support is in active development. The application will be available as:
 - appimagetool
 - fpm (for package creation)
 
-## Usage
+## Usage (CLI / Headless)
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Create a configuration file (YAML or JSON):
-   ```bash
-   cp config/hive_mcp_gateway_config.yaml.example config/hive_mcp_gateway_config.yaml
-   ```
-
-3. Run the server:
-   ```bash
-   python -m hive_mcp_gateway
-   ```
+For server-only or Docker deployments:
+1. Prepare your configuration file (YAML/JSON) as needed.
+2. Run the API + MCP endpoint: `uv run hive-mcp-gateway` or `uv run python -m hive_mcp_gateway.main`
 
 ## API Endpoints
 
@@ -276,6 +294,14 @@ Claude Code in particular suffers from major context window bloat as you add num
 - Reduce startup time and memory usage
 
 This makes Hive MCP Gateway especially valuable for Claude Code users who work with multiple MCP tools simultaneously.
+
+## Roadmap (Short)
+
+- Core stabilization: Validate deterministic enumeration and proxy execution end-to-end (no LLM). Add/verify tests and docs, ensure per-server `toolFilter` enforcement, and consider optional provisioning checks.
+- LLM-assisted enumeration (flagged): Introduce a feature flag (`HMG_ENABLE_LLM_ENUM=1`) to route `add_server` through LLM-assisted tool enumeration with automatic fallback to deterministic mode; A/B test and measure value.
+- Optional LLM re-ranking: If results justify, add LLM-based re-ranking/sampling into discovery; revisit enabling the LLM UI by default.
+- GitHub MCP enrichment: Evaluate using GitHub MCP (or similar) as an enrichment source for tool metadata where beneficial.
+- Observability: Add lightweight metrics/timing for discovery/execution to guide tuning.
 
 ## Contributing
 

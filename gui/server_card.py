@@ -11,6 +11,7 @@ class ServerCard(QWidget):
     delete_requested = pyqtSignal(str)  # Signal emitted when delete button is clicked
     restart_requested = pyqtSignal(str)  # Signal emitted when restart button is clicked
     toggle_requested = pyqtSignal(str, bool)  # Signal emitted when toggle is changed
+    discover_requested = pyqtSignal(str)  # Signal emitted when discover tools is clicked
     
     def __init__(self, server_id: str, name: str, tools_count: int, status: str, parent=None):
         """
@@ -56,6 +57,13 @@ class ServerCard(QWidget):
         self.tools_label = QLabel(f"{self.tools_count} tools")
         self.tools_label.setStyleSheet("color: #a0a3a8; font-size: 11px;")
         info_layout.addWidget(self.tools_label)
+
+        # Error/status line (visible text under card)
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #ff6b6b; font-size: 11px;")
+        self.error_label.setWordWrap(True)
+        self.error_label.setVisible(False)
+        info_layout.addWidget(self.error_label)
         
         layout.addLayout(info_layout)
         layout.addStretch()
@@ -85,6 +93,27 @@ class ServerCard(QWidget):
             }
         """)
         controls_layout.addWidget(self.reconnect_button)
+
+        # Discover tools now button
+        self.discover_button = QPushButton("🔍 Discover Now")
+        self.discover_button.setObjectName("discoverNowButton")
+        self.discover_button.clicked.connect(self.on_discover_clicked)
+        self.discover_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: none;
+                border-radius: 4px;
+                color: #f2f3f5;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.15);
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+        """)
+        controls_layout.addWidget(self.discover_button)
         
         # Animated toggle switch
         self.toggle_switch = AnimatedToggle()
@@ -188,6 +217,10 @@ class ServerCard(QWidget):
     def on_restart_clicked(self):
         """Handle restart button click."""
         self.restart_requested.emit(self.server_id)
+
+    def on_discover_clicked(self):
+        """Handle discover tools click."""
+        self.discover_requested.emit(self.server_id)
     
     def on_toggle_changed(self, checked):
         """Handle toggle switch change."""
@@ -223,3 +256,12 @@ class ServerCard(QWidget):
         self.tools_count = count
         if hasattr(self, 'tools_label'):
             self.tools_label.setText(f"{count} tools")
+
+    def set_error_message(self, message: str | None):
+        """Update the visible error/status line."""
+        if message:
+            self.error_label.setText(str(message))
+            self.error_label.setVisible(True)
+        else:
+            self.error_label.clear()
+            self.error_label.setVisible(False)

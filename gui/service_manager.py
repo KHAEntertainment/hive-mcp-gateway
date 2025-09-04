@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QThread, QProcess
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QThread, QProcess, QProcessEnvironment
 from PyQt6.QtWidgets import QMessageBox
 
 logger = logging.getLogger(__name__)
@@ -37,12 +37,27 @@ class ServiceManager(QObject):
     status_changed = pyqtSignal(str)  # Service status signal
     log_message = pyqtSignal(str)     # Log message signal
     
-    def __init__(self):
-        """Initialize service manager."""
+    def __init__(self, config_manager: Optional["ConfigManager"] = None):
+        """Initialize service manager.
+
+        Args:
+            config_manager: Optional shared ConfigManager to read runtime settings (e.g., port).
+        """
         super().__init__()
-        
+
+        # Hold a reference to the config manager if provided (lazy import type)
+        self._config_manager = config_manager
+
         # Service configuration
-        self.tool_gating_port = 8001  # Non-interfering port
+        self.tool_gating_port = 8001  # Default; may be overridden by config
+        # Prefer configured port if available
+        try:
+            if self._config_manager is not None:
+                cfg = self._config_manager.load_config()
+                if getattr(cfg, "tool_gating", None) and getattr(cfg.tool_gating, "port", None):
+                    self.tool_gating_port = int(cfg.tool_gating.port)
+        except Exception as e:
+            logger.debug(f"Could not load configured port from config manager: {e}")
         self.mcp_proxy_port = 9090
         self.mcp_proxy_path = Path("/Users/bbrenner/hive-mcp-gateway")
         
@@ -54,8 +69,11 @@ class ServiceManager(QObject):
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.check_service_status)
         self.status_timer.start(5000)  # Check every 5 seconds
-        
+
         logger.info("Service manager initialized")
+        # Diagnostics for banner updates
+        self.last_api_base: Optional[str] = None
+        self.last_status_error: Optional[str] = None
     
     def start_service(self) -> bool:
         """Start the Hive MCP Gateway backend service."""
@@ -102,11 +120,34 @@ class ServiceManager(QObject):
             if self.tool_gating_process: # Add check here
                 self.tool_gating_process.setProgram(cmd[0])
                 self.tool_gating_process.setArguments(cmd[1:])
+
+                # Ensure working directory is project root (where config/ lives)
+                try:
+                    project_root = Path(__file__).resolve().parent.parent
+                    if (project_root / "config").exists():
+                        self.tool_gating_process.setWorkingDirectory(str(project_root))
+                except Exception:
+                    pass
+
+                # Inject environment for explicit host/config (avoid forcing PORT to allow backend fallback)
+                try:
+                    env = QProcessEnvironment.systemEnvironment()
+                    env.insert("CONFIG_PATH", "config/tool_gating_config.yaml")
+                    env.insert("HOST", "0.0.0.0")
+                    env.insert("LOG_LEVEL", "info")
+                    self.tool_gating_process.setProcessEnvironment(env)
+                except Exception:
+                    pass
                 
                 # Connect signals
                 self.tool_gating_process.readyReadStandardOutput.connect(self._on_stdout)
                 self.tool_gating_process.readyReadStandardError.connect(self._on_stderr)
-                self.tool_gating_process.finished.connect(self._on_process_finished)
+                # Capture exit code/status for debugging
+                try:
+                    self.tool_gating_process.finished[int, QProcess.ExitStatus].connect(self._on_process_finished)
+                except Exception:
+                    # Fallback: connect without explicit signature
+                    self.tool_gating_process.finished.connect(self._on_process_finished)
                 
                 # Start the process
                 self.tool_gating_process.start()
@@ -190,13 +231,35 @@ class ServiceManager(QObject):
         return self.start_service()
     
     def is_service_running(self) -> bool:
-        """Check if Hive MCP Gateway service is running."""
+        """Check if Hive MCP Gateway service is running.
+
+        Detects a running server on the configured port first, then falls back to common defaults.
+        Updates the active port if it finds the server on an alternate port.
+        """
         # Check by process
         if self.tool_gating_process and self.tool_gating_process.state() == QProcess.ProcessState.Running:
             return True
+
+        # Probe candidate ports
+        # If backend wrote a selected port file, prefer it first
+        try:
+            port_file = Path(__file__).resolve().parent.parent / "run" / "hmg_port"
+            if port_file.exists():
+                contents = port_file.read_text(encoding="utf-8").strip()
+                if contents.isdigit():
+                    hinted = int(contents)
+                    if hinted and hinted != self.tool_gating_port:
+                        self.tool_gating_port = hinted
+        except Exception:
+            pass
         
-        # Check by port
-        return self._is_port_in_use(self.tool_gating_port)
+        for port in self._candidate_ports():
+            if self._is_port_in_use(port):
+                if port != self.tool_gating_port:
+                    logger.info(f"Detected running backend on port {port}; updating ServiceManager port")
+                    self.tool_gating_port = port
+                return True
+        return False
     
     def get_service_status(self) -> ServiceStatus:
         """Get detailed service status information."""
@@ -241,33 +304,24 @@ class ServiceManager(QObject):
         return logs[-lines:] if len(logs) > lines else logs
     
     def _get_start_command(self) -> Optional[List[str]]:
-        """Get command to start the service."""
-        # Method 1: Try to find tool-gating-mcp in PATH
+        """Get command to start the service.
+
+        Prefer the current interpreter and module execution for stability.
+        """
+        # Method 1: Dedicated CLI if available
         try:
-            result = subprocess.run(["which", "tool-gating-mcp"], 
-                                  capture_output=True, text=True)
+            result = subprocess.run(["which", "tool-gating-mcp"], capture_output=True, text=True)
             if result.returncode == 0:
                 return ["tool-gating-mcp"]
-        except:
+        except Exception:
             pass
-        
-        # Method 2: Run from current directory using uvicorn
-        current_dir = Path.cwd()
-        main_py = current_dir / "src" / "hive_mcp_gateway" / "main.py"
-        
-        if main_py.exists():
-            return [
-                "uvicorn", 
-                "hive_mcp_gateway.main:app",
-                "--host", "0.0.0.0",
-                "--port", str(self.tool_gating_port),
-                "--reload"
-            ]
-        
-        # Method 3: Python module execution
-        return [
-            "python", "-m", "hive_mcp_gateway.main"
-        ]
+
+        # Method 2: Python module execution with current interpreter
+        try:
+            import sys
+            return [sys.executable, "-m", "hive_mcp_gateway.main"]
+        except Exception:
+            return ["python", "-m", "hive_mcp_gateway.main"]
     
     def _is_port_in_use(self, port: int) -> bool:
         """Check if a port is in use using socket connection test."""
@@ -296,6 +350,32 @@ class ServiceManager(QObject):
         except Exception as e:
             logger.debug(f"Failed to probe for free port near {start_port}: {e}")
         return None
+
+    def _candidate_ports(self) -> List[int]:
+        """Return a short list of candidate ports to probe for the backend.
+
+        Policy: prefer current/configured port, then 8001, then 8002-8025.
+        """
+        candidates: List[int] = []
+        # Current runtime port first
+        if self.tool_gating_port:
+            candidates.append(self.tool_gating_port)
+        # Configured port if different
+        try:
+            if self._config_manager is not None:
+                cfg = self._config_manager.load_config()
+                cfg_port = int(getattr(getattr(cfg, "tool_gating", object()), "port", 0) or 0)
+                if cfg_port and cfg_port not in candidates:
+                    candidates.append(cfg_port)
+        except Exception:
+            pass
+        # Default and fallback range
+        if 8001 not in candidates:
+            candidates.append(8001)
+        for p in range(8002, 8026):
+            if p not in candidates:
+                candidates.append(p)
+        return candidates
     
     def _on_stdout(self):
         """Handle stdout from the process."""
@@ -315,9 +395,14 @@ class ServiceManager(QObject):
                 if message:
                     self.log_message.emit(f"ERROR: {message}")
     
-    def _on_process_finished(self):
-        """Handle process finished event."""
-        logger.info("Hive MCP Gateway service process finished")
+    def _on_process_finished(self, exit_code: int = 0, exit_status=None):
+        """Handle process finished event with diagnostics."""
+        try:
+            logger.info(
+                f"Hive MCP Gateway service process finished (exit_code={exit_code}, exit_status={exit_status})"
+            )
+        except Exception:
+            logger.info("Hive MCP Gateway service process finished")
         self.tool_gating_process = None
         self.tool_gating_pid = None
         self.status_changed.emit("stopped")
@@ -347,13 +432,24 @@ class ServiceManager(QObject):
             return []
         
         try:
-            # Make HTTP request to get server statuses
-            response = requests.get(f"http://localhost:{self.tool_gating_port}/api/mcp/servers", timeout=5)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logger.warning(f"Failed to get server statuses: {response.status_code}")
-                return []
+            # Try candidate ports and return the first successful response
+            for port in self._candidate_ports():
+                for host in ("localhost", "127.0.0.1"):
+                    base = f"http://{host}:{port}"
+                    try:
+                        response = requests.get(f"{base}/api/mcp/servers", timeout=5)
+                        if response.status_code == 200:
+                            if port != self.tool_gating_port:
+                                self.tool_gating_port = port
+                            self.last_api_base = base
+                            self.last_status_error = None
+                            return response.json()
+                    except Exception:
+                        continue
+
+            logger.warning("Failed to get server statuses from all candidate URLs")
+            self.last_status_error = "No reachable /api/mcp/servers"
+            return []
         except Exception as e:
             logger.error(f"Error getting server statuses: {e}")
             return []
@@ -371,23 +467,93 @@ class ServiceManager(QObject):
         if not self.is_service_running():
             logger.error(f"Cannot restart server {server_id}: service not running")
             return False
-            
+
+        # Call the API to reconnect the server using discovered/active port
         try:
-            # Call the API to reconnect the server
-            # First make sure it's enabled
-            response = requests.post(
-                f"http://localhost:{self.tool_gating_port}/api/mcp/reconnect",
-                json={"server_id": server_id},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                logger.info(f"Successfully restarted server {server_id}")
-                return True
-            else:
-                logger.error(f"Failed to restart server {server_id}: {response.status_code}")
-                return False
-                
+            bases: List[str] = []
+            if self.last_api_base:
+                bases.append(self.last_api_base)
+            bases.extend([
+                f"http://localhost:{self.tool_gating_port}",
+                f"http://127.0.0.1:{self.tool_gating_port}",
+            ])
+            for base in bases:
+                try:
+                    resp = requests.post(
+                        f"{base}/api/mcp/reconnect",
+                        json={"server_id": server_id},
+                        timeout=20,
+                    )
+                    if resp.status_code == 200:
+                        logger.info(f"Successfully reconnected server {server_id}")
+                        self.last_api_base = base
+                        return True
+                except Exception as e:
+                    logger.debug(f"Reconnect via {base} failed: {e}")
+                    continue
+            logger.error(f"Failed to reconnect server {server_id} on all candidate bases")
+            return False
         except Exception as e:
             logger.error(f"Error restarting server {server_id}: {e}")
+            return False
+
+    def reconnect_all_servers(self) -> bool:
+        """Reconnect all backend MCP servers via the API.
+
+        Returns True if at least one reconnect succeeded.
+        """
+        if not self.is_service_running():
+            logger.error("Cannot reconnect servers: service not running")
+            return False
+
+        try:
+            statuses = self.get_server_statuses()
+            if not statuses:
+                return False
+
+            any_success = False
+            for st in statuses:
+                name = st.get("name")
+                if not name:
+                    continue
+                try:
+                    ok = self.restart_backend_server(name)
+                    any_success = any_success or ok
+                except Exception as e:
+                    logger.error(f"Error reconnecting {name}: {e}")
+            return any_success
+        except Exception as e:
+            logger.error(f"Error reconnecting all servers: {e}")
+            return False
+
+    def discover_tools(self, server_id: str) -> bool:
+        """Call API to force discovery of tools for a server."""
+        if not self.is_service_running():
+            logger.error("Cannot discover tools: service not running")
+            return False
+        try:
+            bases: List[str] = []
+            if self.last_api_base:
+                bases.append(self.last_api_base)
+            bases.extend([
+                f"http://localhost:{self.tool_gating_port}",
+                f"http://127.0.0.1:{self.tool_gating_port}",
+            ])
+            for base in bases:
+                try:
+                    resp = requests.post(
+                        f"{base}/api/mcp/discover_tools",
+                        json={"server_id": server_id},
+                        timeout=20,
+                    )
+                    if resp.status_code == 200:
+                        logger.info(f"Discover tools succeeded for {server_id}")
+                        self.last_api_base = base
+                        return True
+                except Exception:
+                    continue
+            logger.error("Failed to discover tools on all candidate bases")
+            return False
+        except Exception as e:
+            logger.error(f"Error discovering tools for {server_id}: {e}")
             return False

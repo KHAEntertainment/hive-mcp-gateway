@@ -33,6 +33,8 @@ Branding and Theming:
 """Simplified MCP Server Management - Essential functionality only"""
 
 from typing import Any, List, Dict
+import os
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -43,6 +45,7 @@ from ..models.config import ServerStatus
 from .tools import get_tool_repository
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
+logger = logging.getLogger(__name__)
 
 # Singleton registry instance
 _mcp_registry: MCPServerRegistry | None = None
@@ -91,6 +94,11 @@ class ServerStatusResponse(BaseModel):
 
 class ReconnectServerRequest(BaseModel):
     """Request to reconnect a server"""
+    server_id: str
+
+
+class DiscoverToolsRequest(BaseModel):
+    """Request to force tool discovery for a server"""
     server_id: str
 
 
@@ -166,6 +174,85 @@ async def reconnect_server(
         raise HTTPException(status_code=500, detail=f"Failed to reconnect server: {str(e)}")
 
 
+@router.post("/register_all", operation_id="register_all_servers")
+async def register_all_servers() -> dict[str, Any]:
+    """Force the background registration pipeline to run now and return a summary."""
+    try:
+        from ..main import app
+        if not hasattr(app.state, "auto_registration"):
+            raise HTTPException(status_code=500, detail="AutoRegistrationService not available")
+
+        config_manager = getattr(app.state, "config_manager", None)
+        if not config_manager:
+            raise HTTPException(status_code=500, detail="Config manager not available")
+
+        config = config_manager.load_config()
+        results = await app.state.auto_registration.register_all_servers(config)
+        return {"status": "ok", "results": results}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to register servers: {str(e)}")
+
+
+@router.post("/discover_tools", operation_id="discover_tools_now")
+async def discover_tools_now(
+    request: DiscoverToolsRequest,
+    registry: MCPServerRegistry = Depends(get_mcp_registry),  # noqa: B008
+) -> dict[str, Any]:
+    """Force immediate tool discovery for a server and update registry."""
+    try:
+        from ..main import app
+        if not hasattr(app.state, "client_manager"):
+            raise HTTPException(status_code=500, detail="Client manager not available")
+
+        client_manager = app.state.client_manager
+        # Ensure server exists in registry
+        if request.server_id not in registry.list_active_servers():
+            raise HTTPException(status_code=404, detail=f"Server '{request.server_id}' not found")
+
+        result = await client_manager.discover_tools_now(request.server_id)
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "discover failed"))
+
+        # Return current status snapshot for convenience
+        st = registry.get_server_status(request.server_id)
+        return {
+            "status": "success",
+            "server": request.server_id,
+            "tools_count": result.get("tools_count", 0),
+            "connected": bool(st.connected) if st else False,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to discover tools: {str(e)}")
+
+
+@router.get("/debug/registry", operation_id="debug_registry")
+async def debug_registry(
+    registry: MCPServerRegistry = Depends(get_mcp_registry),  # noqa: B008
+) -> list[dict[str, Any]]:
+    """Return raw registry status for debugging."""
+    try:
+        names = registry.list_active_servers()
+        out: list[dict[str, Any]] = []
+        for n in names:
+            st = registry.get_server_status(n)
+            if st:
+                out.append({
+                    "name": st.name,
+                    "enabled": st.enabled,
+                    "connected": st.connected,
+                    "tool_count": st.tool_count,
+                    "health_status": st.health_status,
+                    "error_message": st.error_message,
+                })
+        return out
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read registry: {str(e)}")
+
+
 @router.get("/servers", operation_id="list_servers")
 async def list_servers(
     registry: MCPServerRegistry = Depends(get_mcp_registry)  # noqa: B008
@@ -222,6 +309,15 @@ async def add_server(
         if server_result["status"] != "success":
             return server_result
         
+        # Feature flag (no-op placeholder): LLM-assisted tool enumeration path
+        # Enable by setting HMG_ENABLE_LLM_ENUM=1 to test later.
+        # This currently does not alter behavior; it only logs intent and annotates response.
+        llm_enum_enabled = os.getenv("HMG_ENABLE_LLM_ENUM", "0") not in (None, "", "0", "false", "False")
+        if llm_enum_enabled:
+            logger.info("LLM-assisted enumeration is ENABLED (placeholder). Deterministic enumeration remains in effect.")
+            # TODO: Wire LLM enumeration (services.mcp_connector.discover_via_anthropic_api)
+            # and merge/enrich results with deterministic discovery when ready.
+
         # Auto-discover and register tools
         from ..main import app
         if hasattr(app.state, "client_manager"):
@@ -253,20 +349,26 @@ async def add_server(
             # Update tool count in server status
             registry.update_server_tool_count(request.name, len(registered_tools))
             
-            return {
+            response = {
                 "status": "success",
                 "message": f"Added {request.name} with {len(registered_tools)} tools",
                 "server": request.name,
                 "tools_discovered": registered_tools,
                 "total_tools": len(registered_tools),
-                "connection_result": connection_result
+                "connection_result": connection_result,
             }
+            if llm_enum_enabled:
+                response["llm_enumeration"] = "enabled_noop"
+            return response
         else:
-            return {
+            response = {
                 "status": "success", 
                 "message": f"Server {request.name} registered (tool discovery pending initialization)",
                 "server": request.name
             }
+            if llm_enum_enabled:
+                response["llm_enumeration"] = "enabled_noop"
+            return response
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to add server: {str(e)}")

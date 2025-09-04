@@ -113,51 +113,68 @@ class MCPClientManager:
             context = stdio_client(server_params)
             self._stdio_contexts[name] = context
             
-            # Enter the context
-            read_stream, write_stream = await context.__aenter__()
+            # Enter the context with extended timeout (slow startup servers)
+            read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=180)
             
             # Create and store session
             session = ClientSession(read_stream, write_stream)
             self.sessions[name] = session
             
-            # Initialize the session
-            await session.initialize()
-            
-            # Discover available tools
-            tools_response = await session.list_tools()
-            tools = tools_response.tools if hasattr(tools_response, 'tools') else []
-            self.server_tools[name] = tools
-            
-            logger.info(f"Discovered {len(tools)} tools from {name}")
-            
-            # Log tool names for debugging
-            for tool in tools:
-                try:
-                    tname = getattr(tool, "name", "unknown")
-                    tdesc = getattr(tool, "description", "") or ""
-                    logger.debug(f"  - {tname}: {tdesc[:50]}...")
-                except Exception:
-                    pass
-            
-            # Store server info
-            self._server_info[name] = {
-                "config": config,
-                "connected": True,
-                "tools_discovered": len(tools)
-            }
-            
-            # Immediately reflect connection status and tool count in shared registry
+            # Initialize the session with extended timeout
+            await asyncio.wait_for(session.initialize(), timeout=180)
+
+            # Mark as connected immediately to avoid blocking other registrations
             try:
                 from ..main import app  # late import to avoid cycles
                 registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
                 if registry:
                     registry.set_server_connected(name, True)
-                    registry.update_server_tool_count(name, len(tools))
-                    logger.info(f"Updated registry for {name}: connected=True, tools={len(tools)}")
+                    # Start with 0 tools until discovery finishes
+                    registry.update_server_tool_count(name, 0)
+                    logger.info(f"Session initialized for {name}; marked connected in registry")
             except Exception as e:
-                logger.warning(f"Could not update registry for {name}: {e}")
-            
-            return {"status": "success", "message": f"Connected to {name}", "tools_count": len(tools)}
+                logger.warning(f"Could not pre-update registry for {name}: {e}")
+
+            # Schedule background tool discovery so we don't block the pipeline
+
+            async def _discover_and_update():
+                try:
+                    # Tool listing can be slow on first run; allow generous time
+                    tools_response = await asyncio.wait_for(session.list_tools(), timeout=180)
+                    tools = tools_response.tools if hasattr(tools_response, 'tools') else []
+                    self.server_tools[name] = tools
+                    logger.info(f"Discovered {len(tools)} tools from {name}")
+                    # Log tool names for debugging
+                    for tool in tools:
+                        try:
+                            tname = getattr(tool, "name", "unknown")
+                            tdesc = getattr(tool, "description", "") or ""
+                            logger.debug(f"  - {tname}: {tdesc[:50]}...")
+                        except Exception:
+                            pass
+                    # Update server info and registry
+                    self._server_info[name] = {
+                        "config": config,
+                        "connected": True,
+                        "tools_discovered": len(tools)
+                    }
+                    try:
+                        from ..main import app  # late import
+                        registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                        if registry:
+                            registry.update_server_tool_count(name, len(tools))
+                            logger.info(f"Updated registry for {name}: connected=True, tools={len(tools)}")
+                    except Exception as e:
+                        logger.warning(f"Could not update registry for {name} after discovery: {e}")
+                except Exception as e:
+                    logger.error(f"Tool discovery failed for {name}: {e}")
+
+            try:
+                asyncio.create_task(_discover_and_update())
+            except Exception as e:
+                logger.debug(f"Failed to schedule tool discovery for {name}: {e}")
+
+            return {"status": "success", "message": f"Connected to {name}", "tools_count": 0}
                         
         except FileNotFoundError:
             error = ConnectionError(f"Command not found: {config['command']}")
@@ -251,6 +268,63 @@ class MCPClientManager:
             }
             self.server_tools[name] = []
             return {"status": "error", "message": str(error), "tools_count": 0}
+
+    async def discover_tools_now(self, name: str) -> Dict[str, Any]:
+        """Force an immediate tool discovery for a server and update registry.
+
+        If the server is not connected, attempts a connection using the registry's config.
+        """
+        try:
+            # Try to use an existing session first
+            session = self.sessions.get(name)
+            if session is None:
+                # Attempt to connect using registry configuration
+                try:
+                    from ..main import app  # late import
+                    registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                    if not registry:
+                        return {"status": "error", "message": "Registry not available"}
+                    cfg = registry.get_server(name)
+                    if not cfg:
+                        return {"status": "error", "message": "Server config not found"}
+                    config_dict = cfg.model_dump() if hasattr(cfg, "model_dump") else cfg.dict()
+                    connect_res = await self.connect_server(name, config_dict)
+                    if connect_res.get("status") != "success":
+                        return {"status": "error", "message": connect_res.get("message", "connect failed")}
+                    session = self.sessions.get(name)
+                    if session is None:
+                        return {"status": "error", "message": "Session unavailable after connect"}
+                except Exception as e:
+                    return {"status": "error", "message": f"Connect for discovery failed: {e}"}
+
+            # Perform discovery with extended timeout
+            tools_response = await asyncio.wait_for(session.list_tools(), timeout=180)
+            tools = tools_response.tools if hasattr(tools_response, 'tools') else []
+            self.server_tools[name] = tools
+
+            # Update registry tool count
+            try:
+                from ..main import app  # late import
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.update_server_tool_count(name, len(tools))
+                    registry.set_server_error(name, None)
+                    logger.info(f"Updated registry for {name}: connected=True, tools={len(tools)}")
+            except Exception as e:
+                logger.warning(f"Could not update registry for {name} (discover_now): {e}")
+
+            return {"status": "success", "tools_count": len(tools)}
+        except Exception as e:
+            # Surface discovery error
+            try:
+                from ..main import app  # late import
+                registry = getattr(app.state, "registry", None) if hasattr(app, "state") else None
+                if registry:
+                    registry.set_server_error(name, str(e))
+            except Exception:
+                pass
+            logger.error(f"Discover tools failed for {name}: {e}")
+            return {"status": "error", "message": str(e)}
     
     async def disconnect_server(self, name: str) -> None:
         """Disconnect from an MCP server."""

@@ -29,38 +29,56 @@ class AutoRegistrationService:
         self.max_registration_attempts = 3
         
     async def register_all_servers(self, config: ToolGatingConfig) -> Dict[str, Any]:
-        """Register all servers from configuration with multi-stage pipeline."""
-        results = {
+        """Register all servers from configuration with multi-stage pipeline.
+
+        Runs initial registration concurrently (limited) so a slow stdio server
+        cannot block others from showing status/counts.
+        """
+        results: Dict[str, Any] = {
             "successful": [],
             "failed": [],
             "skipped": []
         }
-        
+
         backend_servers = config.backend_mcp_servers
-        
-        # Stage 1: Register enabled servers
         logger.info(f"Stage 1: Registering {len(backend_servers)} servers from configuration")
+
+        sem = asyncio.Semaphore(3)
+        tasks: list[asyncio.Task] = []
+
+        async def _process(name: str, cfg: BackendServerConfig) -> None:
+            if not cfg.enabled:
+                results["skipped"].append(name)
+                logger.info(f"Skipping disabled server: {name}")
+                return
+            async with sem:
+                try:
+                    # Put a cap on individual registration time (increase to 180s for slow stdio servers)
+                    reg = await asyncio.wait_for(self._register_server_with_fallback(name, cfg), timeout=180)
+                except asyncio.TimeoutError:
+                    reg = {"status": "error", "message": "registration timeout"}
+                except Exception as e:
+                    reg = {"status": "error", "message": str(e)}
+                if reg.get("status") == "success":
+                    results["successful"].append(name)
+                else:
+                    results["failed"].append({"server": name, "error": reg.get("message")})
+
         for server_name, server_config in backend_servers.items():
-            if not server_config.enabled:
-                results["skipped"].append(server_name)
-                logger.info(f"Skipping disabled server: {server_name}")
-                continue
-                
-            result = await self._register_server_with_fallback(server_name, server_config)
-            if result["status"] == "success":
-                results["successful"].append(server_name)
-            else:
-                results["failed"].append({"server": server_name, "error": result["message"]})
-        
+            tasks.append(asyncio.create_task(_process(server_name, server_config)))
+
+        if tasks:
+            await asyncio.gather(*tasks)
+
         # Stage 2: Health check all registered servers
         logger.info("Stage 2: Performing health checks on registered servers")
         await self._perform_health_checks(results["successful"])
-        
-        # Stage 3: Retry failed registrations
+
+        # Stage 3: Retry failed registrations (sequential with backoff)
         if results["failed"]:
             logger.info(f"Stage 3: Retrying {len(results['failed'])} failed registrations")
             await self._retry_failed_registrations(results)
-        
+
         return results
     
     async def _register_server_with_fallback(self, name: str, config: BackendServerConfig) -> Dict[str, Any]:
@@ -107,10 +125,35 @@ class AutoRegistrationService:
                 "description": config.description or f"MCP server: {name}"
             }
             
-            # Attempt to connect to the server
-            connect_result = await self.client_manager.connect_server(name, server_dict)
+            # Attempt to connect to the server with timeout, so one slow server
+            # doesn't block the whole pipeline
+            try:
+                connect_result = await asyncio.wait_for(
+                    self.client_manager.connect_server(name, server_dict),
+                    timeout=180,
+                )
+            except asyncio.TimeoutError:
+                # Surface error to registry for UI visibility
+                try:
+                    self.registry.set_server_error(name, "connection timeout")
+                    self.registry.set_server_connected(name, False)
+                    self.registry.update_server_tool_count(name, 0)
+                except Exception:
+                    pass
+                return {
+                    "status": "error",
+                    "message": "Server connection timed out",
+                    "server_name": name,
+                }
             
             if connect_result["status"] != "success":
+                # Surface error to registry for UI visibility
+                try:
+                    self.registry.set_server_error(name, connect_result.get("message", "connect failed"))
+                    self.registry.set_server_connected(name, False)
+                    self.registry.update_server_tool_count(name, 0)
+                except Exception:
+                    pass
                 return {
                     "status": "error",
                     "message": f"Server connection failed: {connect_result['message']}",

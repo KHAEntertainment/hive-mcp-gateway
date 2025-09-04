@@ -9,8 +9,8 @@ Hive MCP Gateway is an intelligent gateway that sits between any MCP-compatible 
 Instead of configuring 10+ MCP servers in your MCP client (100+ tools), you configure only Hive MCP Gateway:
 1. **Single Connection**: Your MCP client connects only to Hive MCP Gateway
 2. **Backend Management**: Hive MCP Gateway connects to all your MCP servers
-3. **Smart Discovery**: Find tools across all servers with natural language
-4. **Dynamic Provisioning**: Load only relevant tools within token budgets
+3. **Smart Discovery**: Find tools across all servers with semantic search (no internal LLM required)
+4. **Dynamic Provisioning (Optional)**: Select only relevant tools within token budgets (algorithmic limits)
 5. **Transparent Execution**: Use tools as if directly connected to servers
 
 ## Key Benefits
@@ -33,13 +33,8 @@ When using Hive MCP Gateway as an MCP server, you have access to:
 }
 ```
 
-### 2. `provision_tools` - Load selected tools
-```json
-{
-    "tool_ids": ["puppeteer_screenshot", "exa_web_search"],
-    "context_tokens": 500  // Token budget
-}
-```
+### 2. Provisioning (Optional)
+Provisioning logic exists but is not required for execution in the current build. Selection is performed via discovery and you can call `execute_tool` directly with a tool ID.
 
 ### 3. `execute_tool` - Run any provisioned tool
 ```json
@@ -116,7 +111,7 @@ GET /api/mcp/servers          # List all servers
 POST /api/mcp/servers/register # Register new server
 ```
 
-### Proxy Execution (Coming Soon)
+### Proxy Execution (Available)
 ```
 POST /api/proxy/execute
 {
@@ -208,3 +203,14 @@ The same principles apply to other MCP-compatible clients:
 4. **Provision Only Relevant Tools** to maintain optimal context usage
 
 This allows you to work with virtually unlimited MCP tools while maintaining peak efficiency across any MCP-compatible client!
+
+## LLM Integration (Optional, Disabled by Default)
+
+- The project includes an LLM configuration system (providers, OAuth/keys), but the internal LLM is not used for tool selection or exposure in the current build.
+- To show the LLM configuration UI in the desktop app, set `HMG_ENABLE_LLM_UI=1` in the environment before launching.
+- Future roadmap items may re-introduce LLM sampling or re-ranking for discovery, but gating remains algorithmic by default.
+
+## Tool Enumeration
+
+- Default: Deterministic enumeration happens automatically when servers are added/connected (no LLM required).
+- Optional: An LLM-assisted enumeration helper exists but is not enabled. See `docs/TOOL_ENUMERATION.md`.

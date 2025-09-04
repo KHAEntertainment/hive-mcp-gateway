@@ -126,7 +126,8 @@ class HiveMCPGUI(QApplication):
             sys.exit(0)
         
         # Initialize backend services
-        self.config_manager = ConfigManager()
+        # Align GUI with backend by using the YAML config (single source of truth)
+        self.config_manager = ConfigManager("config/tool_gating_config.yaml")
         self.migration_utility = MigrationUtility(self.config_manager)
         
         # Initialize GUI components
@@ -165,6 +166,12 @@ class HiveMCPGUI(QApplication):
         self.start_dependency_monitoring()
         
         logger.info("Hive MCP Gateway GUI application initialized")
+
+        # Auto-start backend service shortly after GUI init
+        try:
+            QTimer.singleShot(500, self.start_backend_service)
+        except Exception:
+            pass
     
     def configure_macos_behavior(self):
         """Configure macOS-specific behaviors."""
@@ -180,7 +187,7 @@ class HiveMCPGUI(QApplication):
     def setup_backend_services(self):
         """Initialize backend service managers."""
         try:
-            self.service_manager = ServiceManager()
+            self.service_manager = ServiceManager(self.config_manager)
             self.dependency_checker = DependencyChecker()
             self.autostart_manager = AutoStartManager()
             

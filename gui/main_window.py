@@ -83,7 +83,7 @@ class StatusWidget(QWidget):
         self.service_status_label = QLabel("Unknown")
         self.service_status_label.setObjectName("statusValue")
         status_layout.addRow("Status:", self.service_status_label)
-        
+
         # Port configuration
         port_row = QHBoxLayout()
         self.port_input = QLineEdit("8001")  # Initialize with default value for now
@@ -97,6 +97,25 @@ class StatusWidget(QWidget):
         port_row.addWidget(self.port_save_btn)
         port_row.addStretch()
         status_layout.addRow("Port:", port_row)
+
+        # Active API base + Refresh
+        api_row = QHBoxLayout()
+        self.api_base_label = QLabel("Unknown")
+        self.api_base_label.setObjectName("apiBaseLabel")
+        self.refresh_btn = QPushButton("Refresh Now")
+        self.refresh_btn.setObjectName("refreshNowButton")
+        self.reconnect_all_btn = QPushButton("Reconnect All")
+        self.reconnect_all_btn.setObjectName("reconnectAllButton")
+        api_row.addWidget(self.api_base_label)
+        api_row.addStretch()
+        api_row.addWidget(self.reconnect_all_btn)
+        api_row.addWidget(self.refresh_btn)
+        status_layout.addRow("API:", api_row)
+
+        # Last refresh status
+        self.last_refresh_label = QLabel("Not refreshed")
+        self.last_refresh_label.setObjectName("lastRefreshLabel")
+        status_layout.addRow("Last refresh:", self.last_refresh_label)
         
         # PID row
         self.service_pid_label = QLabel("Unknown")
@@ -462,6 +481,7 @@ class MainWindow(QMainWindow):
         self.credentials_btn.setObjectName("secretsButton")
         self.credentials_btn.setToolTip("Open credentials manager for API keys and secrets")
         
+        import os
         self.llm_config_btn = QPushButton("🤖 LLM Configuration")
         self.llm_config_btn.setObjectName("llmConfigButton")
         self.llm_config_btn.setToolTip("Configure external LLM providers (OpenAI, Anthropic, etc.)")
@@ -476,6 +496,12 @@ class MainWindow(QMainWindow):
         
         nav_layout.addWidget(self.add_server_btn)
         nav_layout.addWidget(self.credentials_btn)
+        # Feature flag: hide LLM configuration by default until re-enabled
+        # Enable by setting env var HMG_ENABLE_LLM_UI=1
+        enable_llm_ui = os.getenv("HMG_ENABLE_LLM_UI", "0") not in (None, "", "0", "false", "False")
+        if not enable_llm_ui:
+            self.llm_config_btn.setVisible(False)
+
         nav_layout.addWidget(self.llm_config_btn)
         nav_layout.addWidget(self.autostart_btn)
         nav_layout.addWidget(self.client_config_btn)
@@ -550,6 +576,16 @@ class MainWindow(QMainWindow):
         
         # Connect port configuration signal
         self.status_widget.port_save_requested.connect(self.save_port_configuration)
+        # Manual refresh button to force an immediate fetch of server statuses
+        try:
+            self.status_widget.refresh_btn.clicked.connect(self.update_all_server_tool_counts)
+        except Exception:
+            pass
+        # Reconnect all servers
+        try:
+            self.status_widget.reconnect_all_btn.clicked.connect(self.reconnect_all_servers)
+        except Exception:
+            pass
         
         # Status update timer - Temporary disable automatic status updates
         # to prevent the feedback loop we're seeing
@@ -633,6 +669,22 @@ class MainWindow(QMainWindow):
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
             self.restart_btn.setEnabled(True)
+            # When the backend comes up, refresh servers and counts shortly after
+            try:
+                # Rebuild display to attach cards, then update counts
+                QTimer.singleShot(200, self.update_servers_display)
+                QTimer.singleShot(800, self.update_all_server_tool_counts)
+                # Reflect the active detected port in the UI field
+                if self.service_manager and self.status_widget and hasattr(self.status_widget, 'port_input'):
+                    try:
+                        active_port = getattr(self.service_manager, 'tool_gating_port', None)
+                        if active_port:
+                            self.status_widget.port_input.setText(str(active_port))
+                    except Exception:
+                        pass
+            except Exception:
+                # Best-effort; ignore if timer not available yet
+                pass
         else:
             self.start_btn.setEnabled(True)
             self.stop_btn.setEnabled(False)
@@ -759,6 +811,7 @@ class MainWindow(QMainWindow):
                     if server_id in server_statuses:
                         server_status = server_statuses[server_id]
                         tools_count = server_status.get("tool_count", 0)
+                        error_message = server_status.get("error_message")
                         # Determine status based on connected and enabled flags
                         if server_status.get("connected", False):
                             status = "connected"
@@ -778,17 +831,38 @@ class MainWindow(QMainWindow):
                         # Update its properties
                         server_card.set_status(status)
                         server_card.set_tool_count(tools_count)
+                        try:
+                            # Update visible error line if available
+                            if 'error_message' in server_status:
+                                server_card.set_error_message(server_status.get('error_message'))
+                        except Exception:
+                            pass
                         # Remove from existing_server_cards to mark as used
                         del existing_server_cards[server_id]
                     else:
                         # Create new card
                         server_card = ServerCard(server_id, name, tools_count, status)
-                        # Set tooltip to description if available
+                        # Set tooltip to description and any error message
+                        tooltip_parts = []
                         if description:
-                            server_card.setToolTip(description)
+                            tooltip_parts.append(description)
+                        if server_id in server_statuses:
+                            err = server_statuses[server_id].get("error_message")
+                            if err:
+                                tooltip_parts.append(f"Error: {err}")
+                        if tooltip_parts:
+                            server_card.setToolTip("\n".join(tooltip_parts))
+                        # Visible error line
+                        try:
+                            if server_id in server_statuses:
+                                err = server_statuses[server_id].get("error_message")
+                                server_card.set_error_message(err)
+                        except Exception:
+                            pass
                         server_card.edit_requested.connect(self.edit_server)
                         server_card.delete_requested.connect(self.delete_server)
                         server_card.restart_requested.connect(self.restart_server)
+                        server_card.discover_requested.connect(self.discover_server_tools)
                         server_card.toggle_requested.connect(self.toggle_server)
                     
                     self.status_widget.servers_layout.addWidget(server_card)
@@ -1080,6 +1154,22 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.show_status_message(f"Error restarting server: {e}")
             logger.error(f"Error restarting server {server_id}: {e}")
+
+    def reconnect_all_servers(self):
+        """Reconnect all backend servers and refresh UI."""
+        if not self.service_manager:
+            self.show_status_message("Service manager not available")
+            return
+        try:
+            ok = self.service_manager.reconnect_all_servers()
+            if ok:
+                self.show_status_message("Reconnect initiated for all servers")
+            else:
+                self.show_status_message("Reconnect failed or no servers found")
+        except Exception as e:
+            self.show_status_message(f"Error reconnecting all servers: {e}")
+        # Refresh counts/status shortly after
+        QTimer.singleShot(500, self.update_all_server_tool_counts)
     
     def toggle_server(self, server_id: str, enabled: bool):
         """Toggle a server on/off."""
@@ -1160,6 +1250,8 @@ class MainWindow(QMainWindow):
     def _force_disable_server_card(self, server_id: str):
         """Force a server card to disabled state, bypassing normal update mechanisms."""
         try:
+            # Import here to avoid circular imports and ensure symbol availability
+            from gui.server_card import ServerCard
             # Find the specific server card widget and update it directly
             if (self.status_widget and hasattr(self.status_widget, 'servers_layout') and 
                 hasattr(self.status_widget.servers_layout, 'count') and 
@@ -1187,6 +1279,8 @@ class MainWindow(QMainWindow):
     def _update_specific_server_card(self, server_id: str, enabled: bool):
         """Update a specific server card without recreating all cards."""
         try:
+            # Import here to avoid circular imports and ensure symbol availability
+            from gui.server_card import ServerCard
             # Get the actual server status from the service if available
             actual_status = "disabled"
             actual_tool_count = 0
@@ -1202,6 +1296,19 @@ class MainWindow(QMainWindow):
                     if status["name"] == server_id:
                         # Update the tool count from server status
                         actual_tool_count = status.get("tool_count", 0)
+                        # Update tooltip with any error message
+                        try:
+                            tooltip_parts = []
+                            # Keep existing tooltip description if present
+                            # and append latest error message
+                            err = status.get("error_message")
+                            if err:
+                                tooltip_parts.append(f"Error: {err}")
+                            # Apply tooltip if any
+                            if tooltip_parts:
+                                widget_tooltip = "\n".join(tooltip_parts)
+                        except Exception:
+                            widget_tooltip = None
                         
                         # Determine the actual status
                         if status.get("connected", False):
@@ -1227,6 +1334,12 @@ class MainWindow(QMainWindow):
                             
                             # Update the tool count if needed
                             widget.set_tool_count(actual_tool_count)
+                            # Update tooltip if available
+                            try:
+                                if 'widget_tooltip' in locals() and widget_tooltip:
+                                    widget.setToolTip(widget_tooltip)
+                            except Exception:
+                                pass
                             break
         except Exception as e:
             logger.error(f"Error updating specific server card {server_id}: {e}")
@@ -1236,11 +1349,29 @@ class MainWindow(QMainWindow):
     def update_all_server_tool_counts(self):
         """Update tool counts for all server cards without triggering status changes."""
         try:
+            # Import here to avoid circular imports and ensure symbol availability
+            from gui.server_card import ServerCard
+            # Update API banner base before/after fetch
+            if self.service_manager and hasattr(self.service_manager, 'last_api_base') and self.status_widget:
+                base_pre = self.service_manager.last_api_base or f"http://localhost:{getattr(self.service_manager, 'tool_gating_port', 'unknown')}"
+                if hasattr(self.status_widget, 'api_base_label'):
+                    self.status_widget.api_base_label.setText(base_pre)
             # Get all server statuses from the API
             if not self.service_manager:
                 return
                 
             server_statuses = self.service_manager.get_server_statuses()
+            # Reflect banner after call
+            if self.status_widget:
+                if hasattr(self.status_widget, 'api_base_label'):
+                    base_post = self.service_manager.last_api_base or f"http://localhost:{getattr(self.service_manager, 'tool_gating_port', 'unknown')}"
+                    self.status_widget.api_base_label.setText(base_post)
+                if hasattr(self.status_widget, 'last_refresh_label'):
+                    if server_statuses:
+                        self.status_widget.last_refresh_label.setText("OK")
+                    else:
+                        err = getattr(self.service_manager, 'last_status_error', None) or "No data"
+                        self.status_widget.last_refresh_label.setText(err)
             server_status_dict = {status["name"]: status for status in server_statuses}
             
             # Update each server card's tool count
@@ -1258,8 +1389,29 @@ class MainWindow(QMainWindow):
                                 # Only update tool count, not status
                                 tool_count = server_status_dict[server_id].get("tool_count", 0)
                                 widget.set_tool_count(tool_count)
+                                # Also propagate error message to visible line
+                                try:
+                                    widget.set_error_message(server_status_dict[server_id].get("error_message"))
+                                except Exception:
+                                    pass
         except Exception as e:
             logger.error(f"Error updating server tool counts: {e}")
+
+    def discover_server_tools(self, server_id: str):
+        """Trigger immediate tool discovery for a server and refresh its count."""
+        if not self.service_manager:
+            self.show_status_message("Service manager not available")
+            return
+        try:
+            ok = self.service_manager.discover_tools(server_id)
+            if ok:
+                self.show_status_message(f"Discover triggered for {server_id}")
+                # Refresh tool counts shortly after
+                QTimer.singleShot(400, self.update_all_server_tool_counts)
+            else:
+                self.show_status_message(f"Discover failed for {server_id}")
+        except Exception as e:
+            self.show_status_message(f"Error discovering tools: {e}")
     
     def load_port_configuration(self):
         """Load the port configuration from the config manager."""

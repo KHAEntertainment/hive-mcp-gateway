@@ -50,6 +50,12 @@ Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent con
 
 ## Key Components
 
+### LLM Integration Status
+- Optional integration for external LLM providers (OpenAI, Anthropic, Gemini) exists for future sampling/re-ranking.
+- It is currently disabled by default and not used in the tool-gating loop.
+- You can re-enable the UI configurator by launching with `HMG_ENABLE_LLM_UI=1`.
+- Gating today is algorithmic: semantic discovery + deterministic limits; no LLM is consulted for selection or exposure.
+
 ### 1. MCP Client Manager (NEW)
 - **Purpose**: Manage connections to backend MCP servers
 - **Technology**: MCP Python SDK with stdio transport
@@ -81,6 +87,7 @@ Hive MCP Gateway is an intelligent gateway that manages MCP tools to prevent con
   - Token budget enforcement (default 2000)
   - Tool count limits (default 10)
   - Priority-based selection
+  - Note: No LLM involvement in selection by default
 
 ### 5. Tool Repository
 - **Purpose**: Store tool definitions from all servers

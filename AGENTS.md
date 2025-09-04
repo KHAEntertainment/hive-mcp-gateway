@@ -55,3 +55,6 @@
 - Default port: `8001`. The GUI can change this (Status tab → Port → Save; restart required).
 - If `8001` is occupied, no automatic fallback is performed today. Set a free port via GUI or `PORT` env.
 - API and MCP endpoint are available on `http://<host>:<port>/` and `http://<host>:<port>/mcp`.
+
+## Repository
+- GitHub: https://github.com/KHAEntertainment/hive-mcp-gateway
