@@ -165,8 +165,14 @@ Status update (Sept 4):
 - Summary: Move Dependencies to About tab, simplify Service Status layout, add readable proxy labels + tooltips.
 - Result: Status no longer cramped; proxy line shows Managed/Route/Status+Base.
 
-## 15) Add “Discover All” and per‑server last error in cards (NEW)
+## 15) Add “Discover All” and per‑server last error in cards (IN PROGRESS)
 - Summary: One‑click discovery across servers and surface last discovery error per server.
+- Implemented:
+  - Discover All button in Status → API row (`gui/main_window.py`).
+  - Service method `discover_all_tools()` iterates servers and triggers `/api/mcp/discover_tools` (`gui/service_manager.py`).
+  - Cards show last error line via `error_message` from `/api/mcp/servers` and clear on success.
+- Next:
+  - Optional: show per‑server progress UI; attach timestamps to last error.
 - Acceptance Criteria:
   - Button triggers discovery for all enabled servers with progress.
   - Each card displays last error (if any) with timestamp; clears on success.

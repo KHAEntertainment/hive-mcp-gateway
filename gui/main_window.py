@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QFrame, QMessageBox, QCheckBox, QLineEdit, QComboBox
 )
 from PyQt6.QtCore import QTimer, pyqtSignal, Qt
+import threading
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor
 
 from .server_card import ServerCard
@@ -103,8 +104,12 @@ class StatusWidget(QWidget):
         self.refresh_btn.setObjectName("refreshNowButton")
         self.reconnect_all_btn = QPushButton("Reconnect All")
         self.reconnect_all_btn.setObjectName("reconnectAllButton")
+        # New: Discover All button
+        self.discover_all_btn = QPushButton("Discover All")
+        self.discover_all_btn.setObjectName("discoverAllButton")
         api_row.addWidget(self.api_base_label)
         api_row.addStretch()
+        api_row.addWidget(self.discover_all_btn)
         api_row.addWidget(self.reconnect_all_btn)
         api_row.addWidget(self.refresh_btn)
         status_layout.addRow("API:", api_row)
@@ -596,6 +601,11 @@ class MainWindow(QMainWindow):
         # Reconnect all servers
         try:
             self.status_widget.reconnect_all_btn.clicked.connect(self.reconnect_all_servers)
+        except Exception:
+            pass
+        # Discover all servers' tools
+        try:
+            self.status_widget.discover_all_btn.clicked.connect(self.discover_all_servers)
         except Exception:
             pass
         
@@ -1190,20 +1200,26 @@ class MainWindow(QMainWindow):
             logger.error(f"Error restarting server {server_id}: {e}")
 
     def reconnect_all_servers(self):
-        """Reconnect all backend servers and refresh UI."""
+        """Reconnect all backend servers without blocking the UI, then refresh UI."""
         if not self.service_manager:
             self.show_status_message("Service manager not available")
             return
-        try:
-            ok = self.service_manager.reconnect_all_servers()
-            if ok:
-                self.show_status_message("Reconnect initiated for all servers")
+        self.show_status_message("Reconnecting all servers…")
+
+        def _task():
+            try:
+                ok_local = self.service_manager.reconnect_all_servers()
+            except Exception as e:
+                ok_local = False
+                err = str(e)
+                QTimer.singleShot(0, lambda: self.show_status_message(f"Reconnect error: {err}"))
             else:
-                self.show_status_message("Reconnect failed or no servers found")
-        except Exception as e:
-            self.show_status_message(f"Error reconnecting all servers: {e}")
-        # Refresh counts/status shortly after
-        QTimer.singleShot(500, self.update_all_server_tool_counts)
+                msg = "Reconnect initiated for all servers" if ok_local else "Reconnect failed or no servers found"
+                QTimer.singleShot(0, lambda: self.show_status_message(msg))
+            finally:
+                QTimer.singleShot(500, self.update_all_server_tool_counts)
+
+        threading.Thread(target=_task, daemon=True).start()
     
     def toggle_server(self, server_id: str, enabled: bool):
         """Toggle a server on/off."""
@@ -1432,20 +1448,58 @@ class MainWindow(QMainWindow):
             logger.error(f"Error updating server tool counts: {e}")
 
     def discover_server_tools(self, server_id: str):
-        """Trigger immediate tool discovery for a server and refresh its count."""
+        """Trigger immediate tool discovery for a server without blocking UI; refresh its count."""
         if not self.service_manager:
             self.show_status_message("Service manager not available")
             return
-        try:
-            ok = self.service_manager.discover_tools(server_id)
-            if ok:
-                self.show_status_message(f"Discover triggered for {server_id}")
-                # Refresh tool counts shortly after
-                QTimer.singleShot(400, self.update_all_server_tool_counts)
+        self.show_status_message(f"Discovering tools on {server_id}…")
+
+        def _task():
+            try:
+                ok_local = self.service_manager.discover_tools(server_id)
+            except Exception as e:
+                ok_local = False
+                err = str(e)
+                QTimer.singleShot(0, lambda: self.show_status_message(f"Discover error on {server_id}: {err}"))
             else:
-                self.show_status_message(f"Discover failed for {server_id}")
-        except Exception as e:
-            self.show_status_message(f"Error discovering tools: {e}")
+                msg = f"Discover triggered for {server_id}" if ok_local else f"Discover failed for {server_id}"
+                QTimer.singleShot(0, lambda: self.show_status_message(msg))
+            finally:
+                QTimer.singleShot(400, self.update_all_server_tool_counts)
+
+        threading.Thread(target=_task, daemon=True).start()
+
+    def discover_all_servers(self):
+        """Trigger discovery for all servers without blocking UI; refresh counts."""
+        if not self.service_manager:
+            self.show_status_message("Service manager not available")
+            return
+        self.show_status_message("Discovering tools on all servers…")
+
+        def _task():
+            try:
+                fn = getattr(self.service_manager, 'discover_all_tools', None)
+                if callable(fn):
+                    any_ok = self.service_manager.discover_all_tools()
+                else:
+                    statuses = self.service_manager.get_server_statuses()
+                    any_ok = False
+                    for st in statuses:
+                        sid = st.get("name")
+                        if not sid:
+                            continue
+                        try:
+                            any_ok = self.service_manager.discover_tools(sid) or any_ok
+                        except Exception:
+                            continue
+                msg = "Discover initiated for all servers" if any_ok else "Discover failed for all servers"
+                QTimer.singleShot(0, lambda: self.show_status_message(msg))
+            except Exception as e:
+                QTimer.singleShot(0, lambda: self.show_status_message(f"Error discovering all servers: {e}"))
+            finally:
+                QTimer.singleShot(600, self.update_all_server_tool_counts)
+
+        threading.Thread(target=_task, daemon=True).start()
     
     def load_port_configuration(self):
         """Load the port configuration from the config manager."""

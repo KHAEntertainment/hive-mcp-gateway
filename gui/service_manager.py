@@ -648,3 +648,28 @@ class ServiceManager(QObject):
         except Exception as e:
             logger.error(f"Error discovering tools for {server_id}: {e}")
             return False
+
+    def discover_all_tools(self) -> bool:
+        """Trigger discovery for all servers via API. Returns True if any succeed."""
+        if not self.is_service_running():
+            logger.error("Cannot discover tools: service not running")
+            return False
+        try:
+            statuses = self.get_server_statuses()
+            if not statuses:
+                logger.warning("No server statuses available for discovery")
+                return False
+            any_success = False
+            for st in statuses:
+                sid = st.get("name")
+                if not sid:
+                    continue
+                try:
+                    ok = self.discover_tools(sid)
+                    any_success = any_success or ok
+                except Exception as e:
+                    logger.error(f"Discover tools error for {sid}: {e}")
+            return any_success
+        except Exception as e:
+            logger.error(f"Error running Discover All: {e}")
+            return False

@@ -1,0 +1,43 @@
+{
+  "mcpProxy": {
+    "addr": ":9090",
+    "name": "MCP Proxy",
+    "version": "1.0.0",
+    "type": "sse",
+    "options": {
+      "logEnabled": true
+    }
+  },
+  "mcpServers": {
+    "basic_memory": {
+      "command": "uvx",
+      "args": [
+        "basic-memory",
+        "mcp"
+      ],
+      "env": {}
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ],
+      "env": {}
+    },
+    "exa": {
+      "url": "http://localhost:8002/exa",
+      "headers": {
+        "Authorization": "Bearer ${EXA_API_KEY}"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ],
+      "env": {}
+    }
+  }
+}
