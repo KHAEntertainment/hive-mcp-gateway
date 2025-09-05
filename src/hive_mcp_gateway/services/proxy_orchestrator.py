@@ -7,6 +7,7 @@ binary or Docker image. On success, exposes a local base URL for SSE endpoints.
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from ..models.config import ToolGatingConfig, BackendServerConfig
+
+logger = logging.getLogger(__name__)
 
 
 class MCPProxyOrchestrator:
@@ -96,6 +99,34 @@ class MCPProxyOrchestrator:
             return self.try_start(conf_file)
 
     def try_start(self, config_file: Path) -> bool:
+        # Try Docker first since TBXark mcp-proxy is available as container
+        docker = shutil.which("docker")
+        if docker:
+            try:
+                # Check if the image exists
+                import subprocess
+                result = subprocess.run(
+                    [docker, "images", "-q", "ghcr.io/tbxark/mcp-proxy:latest"],
+                    capture_output=True,
+                    text=True
+                )
+                if result.stdout.strip():
+                    # Image exists, use it
+                    self.proc = subprocess.Popen([
+                        docker,
+                        "run",
+                        "--rm",
+                        "-p",
+                        "9090:9090",
+                        "-v",
+                        f"{config_file}:/config/config.json",
+                        "ghcr.io/tbxark/mcp-proxy:latest",
+                    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    if self._await_ready():
+                        return True
+            except Exception as e:
+                logger.debug(f"Docker attempt failed: {e}")
+        
         # Prefer bundled binary if available
         possible: list[Path] = []
         try:
