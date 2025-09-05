@@ -371,7 +371,8 @@ class MCPClientManager:
                     base = None
                 if not base:
                     return {"status": "error", "message": "proxy_url not configured (set toolGating.proxyUrl)", "tools_count": 0}
-                proxy_endpoint = f"{base.rstrip('/')}/{name}/sse"
+                # TBXark proxy doesn't use /sse suffix - the endpoint itself is the SSE stream
+                proxy_endpoint = f"{base.rstrip('/')}/{name}/"
 
             # Optional headers
             headers = config.get("headers", {}) or {}
