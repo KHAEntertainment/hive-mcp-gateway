@@ -1,0 +1,21 @@
+{
+  "mcpProxy": {
+    "addr": ":9090",
+    "name": "MCP Proxy",
+    "version": "1.0.0",
+    "type": "sse",
+    "options": {
+      "logEnabled": true
+    }
+  },
+  "mcpServers": {
+    "basic_memory": {
+      "command": "uvx",
+      "args": [
+        "basic-memory",
+        "mcp"
+      ],
+      "env": {}
+    }
+  }
+}

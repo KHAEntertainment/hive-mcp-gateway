@@ -43,42 +43,6 @@
       },
       "options": null
     },
-    "basic_memory": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "basic-memory",
-        "mcp"
-      ],
-      "env": {},
-      "url": null,
-      "headers": null,
-      "description": "Simple key-value memory storage",
-      "enabled": true,
-      "authentication": {
-        "config": {
-          "type": "none"
-        }
-      },
-      "healthCheck": {
-        "enabled": true,
-        "interval": 60,
-        "endpoint": null,
-        "timeout": 10
-      },
-      "metadata": {
-        "category": null,
-        "version": null,
-        "tags": [],
-        "description": null
-      },
-      "options": {
-        "toolFilter": null,
-        "timeout": 15,
-        "retryCount": 2,
-        "batchSize": 10
-      }
-    },
     "puppeteer": {
       "type": "stdio",
       "command": "npx",

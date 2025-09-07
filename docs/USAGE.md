@@ -204,6 +204,18 @@ The same principles apply to other MCP-compatible clients:
 
 This allows you to work with virtually unlimited MCP tools while maintaining peak efficiency across any MCP-compatible client!
 
+## GUI Controls (Desktop App)
+
+- Reconnect All: Reconnects all configured servers without blocking the UI. Use this after changing config or proxy state.
+- Discover Now: Per‑server action on each card that forces a fresh tool enumeration for that server (non‑blocking).
+- Discover All: One‑click discovery across all servers; tool counts update shortly after.
+- Proxy Status: Status line shows Managed/Route/Status + Base. If Stopped, the app falls back to direct stdio.
+- Last Error: Each server card displays the last discovery/connection error inline; it clears on success.
+
+Troubleshooting
+- If a button appears to do nothing, check the Status line for a brief message and the Logs tab for HTTP status + error details.
+- If the proxy is not installed/running, discovery proceeds via direct stdio; tool counts may update a bit slower.
+
 ## LLM Integration (Optional, Disabled by Default)
 
 - The project includes an LLM configuration system (providers, OAuth/keys), but the internal LLM is not used for tool selection or exposure in the current build.

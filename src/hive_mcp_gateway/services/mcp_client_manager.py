@@ -118,6 +118,7 @@ class MCPClientManager:
         try:
             from mcp import ClientSession  # type: ignore
             from mcp.client.stdio import stdio_client, StdioServerParameters  # type: ignore
+            import json
         except ImportError:
             logger.warning("MCP SDK not available, using mock tools for server: %s", name)
             
@@ -179,14 +180,51 @@ class MCPClientManager:
             self._stdio_contexts[name] = context
             
             # Enter the context with extended timeout (slow startup servers)
-            read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=180)
+            # Note: This may fail if the server outputs non-JSON banner messages on startup
+            # The SDK's stdio_client tries to parse the first message as JSON immediately
+            try:
+                logger.debug(f"Entering stdio context for {name}...")
+                read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=180)
+                logger.debug(f"Successfully entered stdio context for {name}")
+            except Exception as e:
+                # Server likely printed a banner/startup message before JSON-RPC messages
+                logger.warning(f"Failed to enter stdio context for {name}: {type(e).__name__}: {str(e)[:200]}")
+                # Some servers output banners that break the initial handshake
+                # The MCP SDK isn't designed to handle this gracefully
+                # For now, we'll note the error but continue
+                if "JSONDecodeError" in str(type(e)) or "json" in str(e).lower():
+                    logger.warning(f"Server {name} likely printed non-JSON banner, attempting recovery")
+                    await asyncio.sleep(0.5)
+                    # Re-create the context and try again
+                    context = stdio_client(server_params)
+                    self._stdio_contexts[name] = context
+                    read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=30)
+                else:
+                    raise
             
-            # Create and store session
-            session = ClientSession(read_stream, write_stream)
+            # Create a message handler that tolerates banner/startup messages
+            async def tolerant_message_handler(message):
+                """Handle messages from the MCP server, ignoring banner exceptions."""
+                if isinstance(message, Exception):
+                    # This is typically a JSON parsing error from banner/startup messages
+                    # Log it for debugging but don't fail
+                    logger.info(f"Ignoring banner/parse exception from {name}: {type(message).__name__}: {str(message)[:200]}")
+                    return
+                # For other message types (requests/notifications), use default handling
+                logger.debug(f"Received message from {name}: {type(message).__name__}")
+                # The default handler just does a checkpoint
+                await asyncio.sleep(0)  # Yield control
+            
+            # Create and store session (temporarily without custom handler to test)
+            session = ClientSession(
+                read_stream, 
+                write_stream
+                # message_handler=tolerant_message_handler  # Temporarily disabled to test
+            )
             self.sessions[name] = session
             
-            # Wait a bit for the server to fully start up (FastMCP servers print banners)
-            await asyncio.sleep(0.5)
+            # Give the server a moment to finish any startup messages
+            await asyncio.sleep(0.2)
             
             # Initialize the session with extended timeout and retries
             max_init_retries = 3

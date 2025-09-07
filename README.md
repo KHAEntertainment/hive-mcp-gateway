@@ -1,5 +1,11 @@
 # Hive MCP Gateway
 
+> ⚠️ **CRITICAL REQUIREMENT:** This project requires **TBXark/mcp-proxy** (NOT the Anthropic mcp-proxy)!  
+> - **Docker (Recommended):** `docker pull ghcr.io/tbxark/mcp-proxy:latest`
+> - **GitHub:** https://github.com/TBXark/mcp-proxy
+> - **Important:** Do NOT use `uv tool install mcp-proxy` - that installs the wrong proxy!
+> - See [docs/CRITICAL_PROXY_DISCOVERY.md](docs/CRITICAL_PROXY_DISCOVERY.md) for the 3-day debugging story
+
 Hive MCP Gateway is an intelligent system for managing Model Context Protocol (MCP) tools to prevent context bloat. It discovers and uses only the most relevant tools for a given task.
 
 This project is designed for end users first: start the app, connect your MCP clients (Claude Desktop/Code, Gemini CLI), and work. Advanced configuration remains available for power users and headless/Docker setups.
