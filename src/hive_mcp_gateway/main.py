@@ -1,6 +1,5 @@
 # FastAPI application entry point
 # Defines the main app instance and core routes
-print("=== FILE IS BEING IMPORTED ===")
 
 import logging
 from logging.handlers import RotatingFileHandler

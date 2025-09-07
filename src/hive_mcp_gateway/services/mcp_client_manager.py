@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 # Use filtered stdio transport for banner-emitting servers
-from .filtered_stdio_transport import FilteredStdioTransport, FilteredStdioServerParameters
+from .filtered_stdio_transport import filtered_stdio_client, FilteredStdioServerParameters
 import aiohttp
 
 from .error_handler import ErrorHandler, ToolExecutionError, ConnectionError
@@ -185,25 +185,26 @@ class MCPClientManager:
                 # Use filtered transport for banner-emitting servers
                 logger.info(f"Using filtered STDIO transport for banner-prone server: {name}")
                 
-                # Resolve command path if needed
-                import shutil
-                resolved_command = shutil.which(config["command"])
-                if not resolved_command:
-                    logger.error(f"Command not found: {config['command']}")
-                    raise FileNotFoundError(f"Command not found: {config['command']}")
-                
-                # Create filtered transport
+                # Create filtered transport parameters
                 filtered_params = FilteredStdioServerParameters(
-                    command=resolved_command,
+                    command=config["command"],
                     args=config.get("args", []),
                     env=base_env,
+                    cwd=config.get("cwd")
                 )
                 
-                transport = FilteredStdioTransport(filtered_params)
-                read_stream, write_stream = await asyncio.wait_for(
-                    transport.start(),
-                    timeout=180
-                )
+                # Create context manager using filtered client
+                context = filtered_stdio_client(filtered_params)
+                self._stdio_contexts[name] = context
+                
+                # Enter the context with extended timeout
+                try:
+                    logger.debug(f"Entering filtered stdio context for {name}...")
+                    read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=180)
+                    logger.debug(f"Successfully entered filtered stdio context for {name}")
+                except Exception as e:
+                    logger.error(f"Failed to enter filtered stdio context for {name}: {type(e).__name__}: {str(e)}")
+                    raise
                 
                 # Skip the normal stdio_client flow
                 use_filtered_transport = True
