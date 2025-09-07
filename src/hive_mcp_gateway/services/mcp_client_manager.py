@@ -2,11 +2,14 @@
 
 import asyncio
 import logging
+import os
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
+# Use filtered stdio transport for banner-emitting servers
+from .filtered_stdio_transport import FilteredStdioTransport, FilteredStdioServerParameters
 import aiohttp
 
 from .error_handler import ErrorHandler, ToolExecutionError, ConnectionError
@@ -169,38 +172,77 @@ class MCPClientManager:
             # Suppress Python warnings that might interfere with STDIO
             base_env.setdefault("PYTHONWARNINGS", "ignore")
 
-            server_params = StdioServerParameters(
-                command=config["command"],
-                args=config.get("args", []),
-                env=base_env,
+            # Check if this is a FastMCP or banner-prone server
+            # Known banner servers: basic_memory (uvx), context7 (npx), puppeteer
+            command = config["command"]
+            is_banner_server = (
+                command in ["uvx", "npx"] or 
+                name in ["basic_memory", "context7", "puppeteer"] or
+                "fastmcp" in name.lower()
             )
             
-            # Create context manager and store it
-            context = stdio_client(server_params)
-            self._stdio_contexts[name] = context
+            if is_banner_server:
+                # Use filtered transport for banner-emitting servers
+                logger.info(f"Using filtered STDIO transport for banner-prone server: {name}")
+                
+                # Resolve command path if needed
+                import shutil
+                resolved_command = shutil.which(config["command"])
+                if not resolved_command:
+                    logger.error(f"Command not found: {config['command']}")
+                    raise FileNotFoundError(f"Command not found: {config['command']}")
+                
+                # Create filtered transport
+                filtered_params = FilteredStdioServerParameters(
+                    command=resolved_command,
+                    args=config.get("args", []),
+                    env=base_env,
+                )
+                
+                transport = FilteredStdioTransport(filtered_params)
+                read_stream, write_stream = await asyncio.wait_for(
+                    transport.start(),
+                    timeout=180
+                )
+                
+                # Skip the normal stdio_client flow
+                use_filtered_transport = True
+            else:
+                # Standard approach for non-banner servers
+                logger.debug(f"Using standard stdio for {name}")
+                server_params = StdioServerParameters(
+                    command=config["command"],
+                    args=config.get("args", []),
+                    env=base_env,
+                )
+                use_filtered_transport = False
             
-            # Enter the context with extended timeout (slow startup servers)
-            # Note: This may fail if the server outputs non-JSON banner messages on startup
-            # The SDK's stdio_client tries to parse the first message as JSON immediately
-            try:
-                logger.debug(f"Entering stdio context for {name}...")
-                read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=180)
-                logger.debug(f"Successfully entered stdio context for {name}")
-            except Exception as e:
-                # Server likely printed a banner/startup message before JSON-RPC messages
-                logger.warning(f"Failed to enter stdio context for {name}: {type(e).__name__}: {str(e)[:200]}")
-                # Some servers output banners that break the initial handshake
-                # The MCP SDK isn't designed to handle this gracefully
-                # For now, we'll note the error but continue
-                if "JSONDecodeError" in str(type(e)) or "json" in str(e).lower():
-                    logger.warning(f"Server {name} likely printed non-JSON banner, attempting recovery")
-                    await asyncio.sleep(0.5)
-                    # Re-create the context and try again
-                    context = stdio_client(server_params)
-                    self._stdio_contexts[name] = context
-                    read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=30)
-                else:
-                    raise
+            # Only use stdio_client for non-banner servers
+            if not use_filtered_transport:
+                # Create context manager and store it
+                context = stdio_client(server_params)
+                self._stdio_contexts[name] = context
+                
+                # Enter the context with extended timeout (slow startup servers)
+                try:
+                    logger.debug(f"Entering stdio context for {name}...")
+                    read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=180)
+                    logger.debug(f"Successfully entered stdio context for {name}")
+                except Exception as e:
+                    # Server likely printed a banner/startup message before JSON-RPC messages
+                    logger.warning(f"Failed to enter stdio context for {name}: {type(e).__name__}: {str(e)[:200]}")
+                    # Some servers output banners that break the initial handshake
+                    # The MCP SDK isn't designed to handle this gracefully
+                    # For now, we'll note the error but continue
+                    if "JSONDecodeError" in str(type(e)) or "json" in str(e).lower():
+                        logger.warning(f"Server {name} likely printed non-JSON banner, attempting recovery")
+                        await asyncio.sleep(0.5)
+                        # Re-create the context and try again
+                        context = stdio_client(server_params)
+                        self._stdio_contexts[name] = context
+                        read_stream, write_stream = await asyncio.wait_for(context.__aenter__(), timeout=30)
+                    else:
+                        raise
             
             # Create a message handler that tolerates banner/startup messages
             async def tolerant_message_handler(message):
